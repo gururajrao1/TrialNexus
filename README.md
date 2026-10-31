@@ -23,13 +23,15 @@ in one bullet) evaluate the first detected rule.
 
 ```
 trialnexus/
-├── backend/                   # FastAPI app, router, SQLite layer
-│   └── agents/                # 4 deterministic agents
-├── frontend/                  # static browser UI (index.html, styles.css, app.js)
-├── data/                      # protocol txt, AE stream, 2 FHIR bundles, SQLite DB
-├── tests/test_smoke.py        # stdlib unittest suite
+├── backend/                   # app entrypoint, config, router, SQLite layer
+│   ├── routes/                # API modules: core, product, tier
+│   └── agents/                # 4 cookbook agents + product/Tier 1+2 modules
+├── frontend/                  # static ES-module UI (index.html, styles.css, js/)
+├── data/                      # protocol txt, AE stream, 5 FHIR bundles, SQLite DB
+├── tests/                     # stdlib unittest + live e2e suites
 ├── seed_data.py               # DB init + seed (stdlib only)
-└── requirements.txt           # only install: fastapi, uvicorn, pydantic, httpx
+├── requirements.txt           # runtime: fastapi, uvicorn, pydantic, httpx
+└── .github/workflows/ci.yml   # lint, tests, e2e, main/mvp parity
 ```
 
 ## VS Code quickstart
@@ -75,3 +77,5 @@ OneDrive tip: right-click `.venv` → "Free up space" to keep it on-demand.
 - `GET /api/protocol-structure/{id}`, `/api/burden/{id}`
 - `GET /api/startup`, `POST /api/startup/{site}/advance`
 - `GET /api/monitoring`, `POST /api/find-trials`, `/api/external-control`
+- `GET /api/trial-outlook/{id}`, `POST /api/forecast`, `/api/twins`, `/api/mcode`
+- `GET /api/n2c2-status`

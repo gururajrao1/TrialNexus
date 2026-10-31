@@ -47,6 +47,12 @@ built directly in this folder (no background agents after the direct-build switc
 | n2c2 validity | Done | `n2c2_harness.py` + 13th tab; fixture F1 1.0, DUA path for real data |
 | Note-aware matching | Done | Synonym table + DocumentReference search in matcher |
 | Storage discipline | Done | 74 files ≈ 617 KB total; CT.gov cache capped at 200 entries |
+| Central config | Done | `backend/config.py`; single source for paths + caps |
+| Route modules | Done | `backend/routes/` core/product/tier; slim `app.py` |
+| Schema versioning | Done | `schema_version` table; old DBs self-upgrade |
+| Ruff gate | Done | `pyproject.toml` + `requirements-dev.txt`; tree normalized |
+| CI | Done | `.github/workflows/ci.yml`: lint, seed, unit, e2e, core parity |
+| Frontend modules | Done | `frontend/js/` ES modules; no build step |
 | UI polish | Done | Portfolio stats, site-query fields, Yes/No cells — no stray JSON |
 | Value map | Done | `PRODUCT_VALUE_MAP.md`: per-feature deliverables × product value |
 | Smoke tests | Done, green | `tests/test_smoke.py`, stdlib unittest, 5/5 passing |
@@ -63,6 +69,8 @@ built directly in this folder (no background agents after the direct-build switc
 - Interactive docs served at `http://127.0.0.1:8000/docs`
 - Tier 1+2: `unittest` 26/26 OK; live e2e 30/30 PASS incl. outlook,
   forecast, twins, mCODE, n2c2-status, and complexity checks
+- SE track: ruff clean; 26/26 unit + 30/30 e2e on main; 7/7 + 12/12 on mvp;
+  main/mvp core parity exit 0
 
 ## Bugs found and fixed during verification
 
