@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from backend.config import DB_PATH as DEFAULT_DB
+from backend.config import SCHEMA_VERSION
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS protocols (
@@ -73,6 +74,9 @@ CREATE TABLE IF NOT EXISTS site_metrics (
     sae INTEGER NOT NULL,
     PRIMARY KEY (site_id, month)
 );
+CREATE TABLE IF NOT EXISTS schema_version (
+    version INTEGER PRIMARY KEY
+);
 """
 
 
@@ -90,10 +94,25 @@ def init_db(db_path: Optional[Path] = None) -> Path:
     conn = get_connection(path)
     try:
         conn.executescript(SCHEMA)
+        conn.execute(
+            "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
+            (SCHEMA_VERSION,),
+        )
         conn.commit()
     finally:
         conn.close()
     return path
+
+
+def get_schema_version(db_path: Optional[Path] = None) -> int:
+    conn = get_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT version FROM schema_version ORDER BY version DESC LIMIT 1"
+        ).fetchone()
+        return int(row[0]) if row else 0
+    finally:
+        conn.close()
 
 
 def insert_protocol(

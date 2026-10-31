@@ -19,6 +19,7 @@ from backend.agents.safety_triage import triage_records  # noqa: E402
 from backend.agents.site_scout import score_sites  # noqa: E402
 from backend.database import (  # noqa: E402
     get_protocol,
+    get_schema_version,
     init_db,
     insert_patient_evaluation,
     insert_protocol,
@@ -71,6 +72,7 @@ class DatabaseTest(unittest.TestCase):
             counts = table_counts(db)
             self.assertEqual(counts["protocols"], 1)
             self.assertEqual(counts["sites"], 1)
+            self.assertEqual(get_schema_version(db), 2)
             insert_patient_evaluation({"id": "E1", "protocol_id": "P1", "patient_fhir_id": "PT-1",
                                        "eligibility_status": "ELIGIBLE", "inclusion_match_score": 100.0,
                                        "exclusion_conflict_count": 0, "rationale": {"a": 1}}, db)
