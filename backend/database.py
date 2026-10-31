@@ -7,8 +7,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DB = PROJECT_ROOT / "data" / "local_db" / "trialnexus_state.db"
+from backend.config import DB_PATH as DEFAULT_DB
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS protocols (

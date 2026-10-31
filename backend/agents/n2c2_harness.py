@@ -17,10 +17,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
-try:
-    from backend.agents.cohort_matcher import _affirmed as affirmed
-except ImportError:  # fallback: run with backend/ as cwd
-    from agents.cohort_matcher import _affirmed as affirmed  # type: ignore[no-redef]
+from backend.agents.cohort_matcher import _affirmed as affirmed
+from backend.config import N2C2_FIXTURE
 
 CRITERIA = ("ABDOMINAL", "ADVANCED-CAD", "ALCOHOL-ABUSE", "ASP-FOR-MI",
             "CREATININE", "DIETSUPP-2MOS", "DRUG-ABUSE", "ENGLISH", "HBA1C",
@@ -92,8 +90,7 @@ def micro_f1(patients: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def load_fixture() -> List[Dict[str, Any]]:
-    path = Path(__file__).resolve().parent.parent.parent / "tests" / "fixtures" / "n2c2_mini.json"
-    return json.loads(path.read_text())["patients"]
+    return json.loads(N2C2_FIXTURE.read_text())["patients"]
 
 
 def load_n2c2_dir(data_dir: str) -> List[Dict[str, Any]]:

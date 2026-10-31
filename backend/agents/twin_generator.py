@@ -11,10 +11,7 @@ import copy
 import random
 from typing import Any, Dict, List
 
-try:
-    from backend.agents.cohort_matcher import evaluate_patient
-except ImportError:  # fallback: run with backend/ as cwd
-    from agents.cohort_matcher import evaluate_patient  # type: ignore[no-redef]
+from backend.agents.cohort_matcher import evaluate_patient
 
 
 def make_twins(bundle: Dict[str, Any], n: int, seed: int = 7,

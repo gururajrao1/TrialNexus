@@ -9,10 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-try:
-    from backend.agents.cohort_matcher import evaluate_patient, patient_id
-except ImportError:  # fallback: run with backend/ as cwd
-    from agents.cohort_matcher import evaluate_patient, patient_id  # type: ignore[no-redef]
+from backend.agents.cohort_matcher import evaluate_patient, patient_id
 
 
 def _top_reasons(ev: Dict[str, Any], limit: int = 2) -> List[str]:

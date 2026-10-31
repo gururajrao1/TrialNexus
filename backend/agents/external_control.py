@@ -11,12 +11,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-try:
-    from backend.agents.cohort_matcher import evaluate_patient, patient_id
-    from backend.agents.diversity_planner import plan_diversity
-except ImportError:  # fallback: run with backend/ as cwd
-    from agents.cohort_matcher import evaluate_patient, patient_id  # type: ignore[no-redef]
-    from agents.diversity_planner import plan_diversity  # type: ignore[no-redef]
+from backend.agents.cohort_matcher import evaluate_patient, patient_id
+from backend.agents.diversity_planner import plan_diversity
 
 
 def _hard_fails(ev: Dict[str, Any]) -> int:

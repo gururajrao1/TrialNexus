@@ -12,10 +12,7 @@ import re
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 
-try:
-    from backend.agents.synonyms import normalize
-except ImportError:  # fallback: run with backend/ as cwd
-    from synonyms import normalize  # type: ignore[no-redef]
+from backend.agents.synonyms import normalize
 
 REF_DATE = date(2025, 6, 1)  # simulated enrollment target date (deterministic)
 

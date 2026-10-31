@@ -8,10 +8,11 @@ lookup is invoked (uses httpx, a core dep).
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any, Dict, List
 
-CACHE = Path(__file__).resolve().parent.parent.parent / "data" / "outputs" / "ctgov_cache.json"
+from backend.config import CTGV_CACHE, CTGV_CACHE_MAX_ENTRIES
+
+CACHE = CTGV_CACHE
 
 REGULATORY_EFFICIENCY = {
     "tier 1": 92.0, "tier1": 92.0, "fast": 92.0,
@@ -46,7 +47,7 @@ def fetch_ctgov_competitors(
         res.raise_for_status()
         count = int(res.json().get("totalCount", 0))
         cache[key] = count
-        while len(cache) > 200:  # storage cap: forget oldest lookups first
+        while len(cache) > CTGV_CACHE_MAX_ENTRIES:  # forget oldest lookups first
             cache.pop(next(iter(cache)))
         try:
             CACHE.parent.mkdir(parents=True, exist_ok=True)
