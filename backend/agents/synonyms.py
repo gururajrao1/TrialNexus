@@ -38,7 +38,8 @@ SYNONYMS = {
 
 _SORTED = sorted(
     ((v, c) for c, vs in SYNONYMS.items() for v in vs),
-    key=lambda p: len(p[0]), reverse=True,
+    key=lambda p: len(p[0]),
+    reverse=True,
 )
 
 

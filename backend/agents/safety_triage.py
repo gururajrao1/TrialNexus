@@ -8,31 +8,66 @@ cookbook JSON contract.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
-SOC_RULES: List[Tuple[str, str, Tuple[str, ...]]] = [
-    ("Hepatobiliary disorders", "Alanine aminotransferase increased",
-     ("alt", "ast", "bilirubin", "hepatic", "liver", "transaminase")),
-    ("Cardiac disorders", "Electrocardiogram QT prolonged",
-     ("qtc", "qt ", "cardiac", "heart", "arrhythmia", "myocardial", "lvef")),
-    ("Blood and lymphatic system disorders", "Neutropenia",
-     ("neutropen", "anc", "leukopen", "thrombocyto", "anemia", "platelet")),
-    ("Gastrointestinal disorders", "Nausea",
-     ("nausea", "vomit", "diarrhea", "diarrhoea", "abdominal", "colitis")),
-    ("Respiratory, thoracic and mediastinal disorders", "Dyspnoea",
-     ("dyspnea", "dyspnoea", "pneumonia", "pneumonitis", "cough", "hypoxia")),
-    ("Nervous system disorders", "Headache",
-     ("headache", "seizure", "neuropathy", "dizziness", "stroke")),
-    ("Renal and urinary disorders", "Blood creatinine increased",
-     ("creatinine", "renal", "kidney", "proteinuria")),
-    ("Skin and subcutaneous tissue disorders", "Rash",
-     ("rash", "pruritus", "dermatitis", "stevens")),
-    ("Infections and infestations", "Febrile neutropenia",
-     ("febrile", "sepsis", "septic", "infection")),
+SOC_RULES: list[tuple[str, str, tuple[str, ...]]] = [
+    (
+        "Hepatobiliary disorders",
+        "Alanine aminotransferase increased",
+        ("alt", "ast", "bilirubin", "hepatic", "liver", "transaminase"),
+    ),
+    (
+        "Cardiac disorders",
+        "Electrocardiogram QT prolonged",
+        ("qtc", "qt ", "cardiac", "heart", "arrhythmia", "myocardial", "lvef"),
+    ),
+    (
+        "Blood and lymphatic system disorders",
+        "Neutropenia",
+        ("neutropen", "anc", "leukopen", "thrombocyto", "anemia", "platelet"),
+    ),
+    (
+        "Gastrointestinal disorders",
+        "Nausea",
+        ("nausea", "vomit", "diarrhea", "diarrhoea", "abdominal", "colitis"),
+    ),
+    (
+        "Respiratory, thoracic and mediastinal disorders",
+        "Dyspnoea",
+        ("dyspnea", "dyspnoea", "pneumonia", "pneumonitis", "cough", "hypoxia"),
+    ),
+    (
+        "Nervous system disorders",
+        "Headache",
+        ("headache", "seizure", "neuropathy", "dizziness", "stroke"),
+    ),
+    (
+        "Renal and urinary disorders",
+        "Blood creatinine increased",
+        ("creatinine", "renal", "kidney", "proteinuria"),
+    ),
+    (
+        "Skin and subcutaneous tissue disorders",
+        "Rash",
+        ("rash", "pruritus", "dermatitis", "stevens"),
+    ),
+    (
+        "Infections and infestations",
+        "Febrile neutropenia",
+        ("febrile", "sepsis", "septic", "infection"),
+    ),
 ]
 
-SAE_KEYWORDS = ("death", "fatal", "life-threat", "life threat", "hospital",
-                "disab", "congenital", "anaphylaxis")
+SAE_KEYWORDS = (
+    "death",
+    "fatal",
+    "life-threat",
+    "life threat",
+    "hospital",
+    "disab",
+    "congenital",
+    "anaphylaxis",
+)
 SEVERITY_GRADES = {"MILD": "Grade 1", "MODERATE": "Grade 2", "SEVERE": "Grade 3"}
 
 
@@ -41,7 +76,7 @@ def _has(blob: str, *keywords: str) -> bool:
     return any(re.search(r"\b" + re.escape(k.strip()), blob) for k in keywords)
 
 
-def _classify(text: str) -> Tuple[str, str]:
+def _classify(text: str) -> tuple[str, str]:
     low = text.lower()
     for soc, pt, keywords in SOC_RULES:
         if _has(low, *keywords):
@@ -66,7 +101,7 @@ def _is_sae(text: str, grade: str) -> bool:
         return False
 
 
-def triage_one(record: Dict[str, Any]) -> Dict[str, Any]:
+def triage_one(record: dict[str, Any]) -> dict[str, Any]:
     """Triage a single discrepancy / adverse event record."""
     term = str(record.get("reported_term", record.get("term", "Unspecified event")))
     detail = str(record.get("description", record.get("query_text", "")))
@@ -78,7 +113,9 @@ def triage_one(record: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(record.get("is_sae"), bool):
         sae = bool(record["is_sae"])
     unexpected = bool(record.get("unexpected")) or "unexpected" in text.lower()
-    fatal = any(k in text.lower() for k in ("death", "fatal", "life-threat", "life threat"))
+    fatal = any(
+        k in text.lower() for k in ("death", "fatal", "life-threat", "life threat")
+    )
     if sae and unexpected:
         alert, deadline = True, 168 if fatal else 360
     else:
@@ -99,12 +136,14 @@ def triage_one(record: Dict[str, Any]) -> Dict[str, Any]:
         "site_query": {
             "query_target": "Investigator",
             "query_text": query_text,
-            "auto_close_condition": ("Repeat assessment within 48 hours confirms "
-                                     "resolution or documents alternative etiology."),
+            "auto_close_condition": (
+                "Repeat assessment within 48 hours confirms "
+                "resolution or documents alternative etiology."
+            ),
         },
     }
 
 
-def triage_records(records: List[Dict[str, Any]]) -> Dict[str, Any]:
+def triage_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     """Triage many records; matches the cookbook JSON contract."""
     return {"triaged_records": [triage_one(r) for r in records]}

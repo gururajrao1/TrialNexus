@@ -7,29 +7,96 @@ Output matches the cookbook JSON contract.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 CATEGORY_KEYWORDS = [
     ("Demographic", ["age", "aged", "male", "female", "sex", "gender"]),
-    ("Biomarker", ["mutation", "her2", "pd-l1", "pdl1", "alk", "kras", "biomarker",
-                   "ihc", "fish", "ngs", "exon", "l858r", "egfr"]),
-    ("Prior Treatment", ["prior", "previous", "chemotherapy", "tki", "tyrosine kinase",
-                         "radiotherapy", "washout", "treatment"]),
+    (
+        "Biomarker",
+        [
+            "mutation",
+            "her2",
+            "pd-l1",
+            "pdl1",
+            "alk",
+            "kras",
+            "biomarker",
+            "ihc",
+            "fish",
+            "ngs",
+            "exon",
+            "l858r",
+            "egfr",
+        ],
+    ),
+    (
+        "Prior Treatment",
+        [
+            "prior",
+            "previous",
+            "chemotherapy",
+            "tki",
+            "tyrosine kinase",
+            "radiotherapy",
+            "washout",
+            "treatment",
+        ],
+    ),
     ("Renal", ["creatinine", "crcl", "creatinine clearance", "renal", "kidney", "gfr"]),
     ("Hepatic", ["alt", "ast", "bilirubin", "hepatic", "liver", "transaminase"]),
-    ("Hematologic", ["neutrophil", "anc", "platelet", "hemoglobin", "anemia",
-                     "leukocyte", "wbc", "marrow"]),
+    (
+        "Hematologic",
+        [
+            "neutrophil",
+            "anc",
+            "platelet",
+            "hemoglobin",
+            "anemia",
+            "leukocyte",
+            "wbc",
+            "marrow",
+        ],
+    ),
     ("Performance Status", ["ecog", "performance status", "karnofsky"]),
-    ("Cardiac", ["qtc", "cardiac", "heart", "lvef", "failure", "arrhythmia",
-                 "myocardial", "cardiovascular"]),
+    (
+        "Cardiac",
+        [
+            "qtc",
+            "cardiac",
+            "heart",
+            "lvef",
+            "failure",
+            "arrhythmia",
+            "myocardial",
+            "cardiovascular",
+        ],
+    ),
     ("CNS", ["brain", "cns", "metastas", "spinal cord", "seizure"]),
     ("Pregnancy", ["pregnan", "breastfeeding", "lactat", "contracept"]),
-    ("Histology", ["histolog", "cytolog", "nsclc", "sclc", "adenocarcinoma",
-                   "squamous", "stage", "metastatic"]),
+    (
+        "Histology",
+        [
+            "histolog",
+            "cytolog",
+            "nsclc",
+            "sclc",
+            "adenocarcinoma",
+            "squamous",
+            "stage",
+            "metastatic",
+        ],
+    ),
 ]
 
-AMBIGUOUS_PHRASES = ["adequate", "clinically significant", "appropriate",
-                     "acceptable", "investigator", "discretion", "suitable"]
+AMBIGUOUS_PHRASES = [
+    "adequate",
+    "clinically significant",
+    "appropriate",
+    "acceptable",
+    "investigator",
+    "discretion",
+    "suitable",
+]
 RIGID_PHRASES = ["must", "shall", "required", "mandatory", "strictly"]
 
 SCI_RE = re.compile(
@@ -68,11 +135,15 @@ def _flexibility(text: str) -> str:
     return "Negotiable"
 
 
-def _parse_rule(text: str) -> Tuple[str, str, Any, Optional[str]]:
+def _parse_rule(text: str) -> tuple[str, str, Any, str | None]:
     sci = SCI_RE.search(text)
     if sci:
-        return (sci.group("var").strip(" ."), sci.group("op"),
-                float(sci.group("val")), "x10^9/L")
+        return (
+            sci.group("var").strip(" ."),
+            sci.group("op"),
+            float(sci.group("val")),
+            "x10^9/L",
+        )
     m = COMPARE_RE.search(text)
     if m:
         raw_val = m.group("val")
@@ -87,11 +158,11 @@ def _parse_rule(text: str) -> Tuple[str, str, Any, Optional[str]]:
     return text[:60].strip(), "==", "present", None
 
 
-def _split_sections(raw: str) -> Tuple[List[str], List[str]]:
-    inc: List[str] = []
-    exc: List[str] = []
-    current: Optional[List[str]] = None
-    pending: Optional[str] = None
+def _split_sections(raw: str) -> tuple[list[str], list[str]]:
+    inc: list[str] = []
+    exc: list[str] = []
+    current: list[str] | None = None
+    pending: str | None = None
     for line in raw.splitlines():
         s = line.strip()
         if not s:
@@ -119,7 +190,7 @@ def _split_sections(raw: str) -> Tuple[List[str], List[str]]:
     return inc, exc
 
 
-def _metadata(raw: str) -> Dict[str, Any]:
+def _metadata(raw: str) -> dict[str, Any]:
     title = "Untitled protocol"
     m = re.search(r"protocol\s+title\s*:\s*(.+)", raw, re.IGNORECASE)
     if m:
@@ -142,49 +213,65 @@ def _metadata(raw: str) -> Dict[str, Any]:
     m = re.search(r"target\s+enrollment\s*:\s*(\d+)", raw, re.IGNORECASE)
     if m:
         enrollment = int(m.group(1))
-    return {"title": title, "phase": phase, "primary_indication": indication,
-            "target_enrollment": enrollment}
+    return {
+        "title": title,
+        "phase": phase,
+        "primary_indication": indication,
+        "target_enrollment": enrollment,
+    }
 
 
-def _audit_operations(
-    raw: str, inc: List[str], exc: List[str]
-) -> List[Dict[str, Any]]:
-    flaws: List[Dict[str, Any]] = []
+def _audit_operations(raw: str, inc: list[str], exc: list[str]) -> list[dict[str, Any]]:
+    flaws: list[dict[str, Any]] = []
     days = sorted({int(d) for d in re.findall(r"\bDay\s+(\d+)", raw, re.IGNORECASE)})
     for a, b in zip(days, days[1:]):
         if 0 < b - a <= 2:
-            flaws.append({
-                "domain": "Schedule_of_Assessments",
-                "description": (f"Visit windows Day {a} and Day {b} are {b - a} day(s) "
-                                "apart; overlapping +/- windows likely."),
-                "suggested_remediation": (f"Merge or separate Day {a}/Day {b} "
-                                          "assessments with non-overlapping windows."),
-                "amendment_risk_score": 0.6,
-            })
+            flaws.append(
+                {
+                    "domain": "Schedule_of_Assessments",
+                    "description": (
+                        f"Visit windows Day {a} and Day {b} are {b - a} day(s) "
+                        "apart; overlapping +/- windows likely."
+                    ),
+                    "suggested_remediation": (
+                        f"Merge or separate Day {a}/Day {b} "
+                        "assessments with non-overlapping windows."
+                    ),
+                    "amendment_risk_score": 0.6,
+                }
+            )
     if len(re.findall(r"\bpk\b|pharmacokinetic", raw, re.IGNORECASE)) >= 4:
-        flaws.append({
-            "domain": "Schedule_of_Assessments",
-            "description": "High PK sampling burden detected (4+ PK mentions).",
-            "suggested_remediation": "Consolidate PK draws; justify each timepoint.",
-            "amendment_risk_score": 0.55,
-        })
+        flaws.append(
+            {
+                "domain": "Schedule_of_Assessments",
+                "description": "High PK sampling burden detected (4+ PK mentions).",
+                "suggested_remediation": "Consolidate PK draws; justify each timepoint.",
+                "amendment_risk_score": 0.55,
+            }
+        )
     for i, crit in enumerate(inc + exc):
         hits = sum(1 for p in AMBIGUOUS_PHRASES if p in crit.lower())
         if hits >= 2:
-            flaws.append({
-                "domain": "Ambiguity",
-                "description": (f"Criterion {i + 1} stacks subjective qualifiers: "
-                                f"{crit[:100]}..."),
-                "suggested_remediation": "Replace qualifiers with numeric thresholds.",
-                "amendment_risk_score": 0.5,
-            })
+            flaws.append(
+                {
+                    "domain": "Ambiguity",
+                    "description": (
+                        f"Criterion {i + 1} stacks subjective qualifiers: "
+                        f"{crit[:100]}..."
+                    ),
+                    "suggested_remediation": "Replace qualifiers with numeric thresholds.",
+                    "amendment_risk_score": 0.5,
+                }
+            )
     if not re.search(r"contracept|pregnan", raw, re.IGNORECASE):
-        flaws.append({
-            "domain": "Regulatory_Risk",
-            "description": "No pregnancy/contraception criterion detected.",
-            "suggested_remediation": "Add standard pregnancy testing requirements.",
-            "amendment_risk_score": 0.7,
-        })
+        flaws.append(
+            {
+                "domain": "Regulatory_Risk",
+                "description": "No pregnancy/contraception criterion detected.",
+                "suggested_remediation": "Add standard pregnancy testing requirements.",
+                "amendment_risk_score": 0.7,
+            }
+        )
     return flaws
 
 
@@ -192,7 +279,7 @@ def _syllables(word: str) -> int:
     return max(1, len(re.findall(r"[aeiouy]+", word.lower())))
 
 
-def _readability(raw_text: str, criteria: List[str]) -> Dict[str, Any]:
+def _readability(raw_text: str, criteria: list[str]) -> dict[str, Any]:
     words = re.findall(r"[A-Za-z']+", raw_text)
     sentences = max(1, len([s for s in re.split(r"[.!?]+", raw_text) if s.strip()]))
     w = max(1, len(words))
@@ -201,42 +288,73 @@ def _readability(raw_text: str, criteria: List[str]) -> Dict[str, Any]:
     grade = round(0.39 * (w / sentences) + 11.8 * (syl / w) - 15.59, 1)
     entities = len(re.findall(r"\b\d+(?:\.\d+)?\b|[A-Z]{2,}", raw_text))
     longies = [i + 1 for i, c in enumerate(criteria) if len(c.split()) > 40]
-    return {"flesch_ease": ease, "flesch_kincaid_grade": grade,
-            "entity_density_per_100w": round(100.0 * entities / w, 1),
-            "long_criteria": longies,
-            "basis": ("Flesch readability + entity density; dense/hard criteria "
-                      "predict amendments and site deviations")}
+    return {
+        "flesch_ease": ease,
+        "flesch_kincaid_grade": grade,
+        "entity_density_per_100w": round(100.0 * entities / w, 1),
+        "long_criteria": longies,
+        "basis": (
+            "Flesch readability + entity density; dense/hard criteria "
+            "predict amendments and site deviations"
+        ),
+    }
 
 
-def parse_protocol(raw_text: str) -> Dict[str, Any]:
+def parse_protocol(raw_text: str) -> dict[str, Any]:
     """Parse raw protocol text into the cookbook audit JSON."""
     inc_raw, exc_raw = _split_sections(raw_text)
-    inclusions: List[Dict[str, Any]] = []
+    inclusions: list[dict[str, Any]] = []
     for i, text in enumerate(inc_raw, 1):
         var, op, val, unit = _parse_rule(text)
-        inclusions.append({"id": f"INC-{i:02d}", "raw_text": text,
-                           "category": _categorize(text), "variable": var,
-                           "operator": op, "value": val, "unit": unit,
-                           "flexibility_rating": _flexibility(text)})
-    exclusions: List[Dict[str, Any]] = []
+        inclusions.append(
+            {
+                "id": f"INC-{i:02d}",
+                "raw_text": text,
+                "category": _categorize(text),
+                "variable": var,
+                "operator": op,
+                "value": val,
+                "unit": unit,
+                "flexibility_rating": _flexibility(text),
+            }
+        )
+    exclusions: list[dict[str, Any]] = []
     for i, text in enumerate(exc_raw, 1):
         var, op, val, unit = _parse_rule(text)
-        exclusions.append({"id": f"EXC-{i:02d}", "raw_text": text,
-                           "category": _categorize(text), "variable": var,
-                           "operator": op, "value": val, "unit": unit,
-                           "flexibility_rating": _flexibility(text)})
+        exclusions.append(
+            {
+                "id": f"EXC-{i:02d}",
+                "raw_text": text,
+                "category": _categorize(text),
+                "variable": var,
+                "operator": op,
+                "value": val,
+                "unit": unit,
+                "flexibility_rating": _flexibility(text),
+            }
+        )
     flaws = _audit_operations(raw_text, inc_raw, exc_raw)
-    ambiguous = sum(1 for c in inclusions + exclusions
-                    if c["flexibility_rating"] == "Ambiguous")
-    fragility = min(100.0, round(len(flaws) * 8.0 + ambiguous * 4.0
-                                 + (len(inclusions) + len(exclusions)) * 0.5, 1))
+    ambiguous = sum(
+        1 for c in inclusions + exclusions if c["flexibility_rating"] == "Ambiguous"
+    )
+    fragility = min(
+        100.0,
+        round(
+            len(flaws) * 8.0
+            + ambiguous * 4.0
+            + (len(inclusions) + len(exclusions)) * 0.5,
+            1,
+        ),
+    )
     exposure = int(round(fragility / 100.0 * 535000, -3))
     complexity = _readability(raw_text, inc_raw + exc_raw)
-    return {"protocol_metadata": _metadata(raw_text),
-            "inclusion_criteria": inclusions,
-            "exclusion_criteria": exclusions,
-            "operational_flaws": flaws,
-            "protocol_fragility_index": fragility,
-            "amendment_exposure_usd": exposure,
-            "exposure_basis": "Tufts CSDD median direct cost $535K per substantial Phase III amendment",
-            "complexity": complexity}
+    return {
+        "protocol_metadata": _metadata(raw_text),
+        "inclusion_criteria": inclusions,
+        "exclusion_criteria": exclusions,
+        "operational_flaws": flaws,
+        "protocol_fragility_index": fragility,
+        "amendment_exposure_usd": exposure,
+        "exposure_basis": "Tufts CSDD median direct cost $535K per substantial Phase III amendment",
+        "complexity": complexity,
+    }

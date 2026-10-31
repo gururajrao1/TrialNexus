@@ -65,21 +65,49 @@ class DatabaseTest(unittest.TestCase):
             init_db(db)
             insert_protocol("P1", "T", "Phase 1", "Ind", "raw text", db)
             self.assertEqual(get_protocol("P1", db)["title"], "T")
-            upsert_site({"id": "S1", "name": "N", "country": "C", "city": "City",
-                         "historical_activation_days": 60, "regulatory_tier": "Tier 1",
-                         "active_competing_trials": 1}, db)
+            upsert_site(
+                {
+                    "id": "S1",
+                    "name": "N",
+                    "country": "C",
+                    "city": "City",
+                    "historical_activation_days": 60,
+                    "regulatory_tier": "Tier 1",
+                    "active_competing_trials": 1,
+                },
+                db,
+            )
             self.assertEqual(len(list_sites(db)), 1)
             counts = table_counts(db)
             self.assertEqual(counts["protocols"], 1)
             self.assertEqual(counts["sites"], 1)
-            insert_patient_evaluation({"id": "E1", "protocol_id": "P1", "patient_fhir_id": "PT-1",
-                                       "eligibility_status": "ELIGIBLE", "inclusion_match_score": 100.0,
-                                       "exclusion_conflict_count": 0, "rationale": {"a": 1}}, db)
-            insert_safety_query({"id": "Q1", "protocol_id": "P1", "patient_id": "PT-1",
-                                 "reported_term": "Nausea", "suspected_meddra_soc": "GI",
-                                 "severity": "MILD", "is_sae": False,
-                                 "reporting_timeline_hours": None, "query_text": "q",
-                                 "resolution_status": "TRIAGED"}, db)
+            insert_patient_evaluation(
+                {
+                    "id": "E1",
+                    "protocol_id": "P1",
+                    "patient_fhir_id": "PT-1",
+                    "eligibility_status": "ELIGIBLE",
+                    "inclusion_match_score": 100.0,
+                    "exclusion_conflict_count": 0,
+                    "rationale": {"a": 1},
+                },
+                db,
+            )
+            insert_safety_query(
+                {
+                    "id": "Q1",
+                    "protocol_id": "P1",
+                    "patient_id": "PT-1",
+                    "reported_term": "Nausea",
+                    "suspected_meddra_soc": "GI",
+                    "severity": "MILD",
+                    "is_sae": False,
+                    "reporting_timeline_hours": None,
+                    "query_text": "q",
+                    "resolution_status": "TRIAGED",
+                },
+                db,
+            )
             self.assertEqual(len(list_patient_evaluations("P1", db_path=db)), 1)
             self.assertEqual(len(list_safety_queries("P1", db_path=db)), 1)
             self.assertEqual(len(list_patient_evaluations("NOPE", db_path=db)), 0)
@@ -94,35 +122,59 @@ class CohortTest(unittest.TestCase):
         if not (p1.exists() and p2.exists() and p3.exists()):
             self.skipTest("seed FHIR bundles missing")
         audit = parse_protocol(PROTOCOL_FILE.read_text())
-        criteria = {"inclusion_criteria": audit["inclusion_criteria"],
-                    "exclusion_criteria": audit["exclusion_criteria"]}
-        bundles = [json.loads(p1.read_text()), json.loads(p2.read_text()),
-                   json.loads(p3.read_text())]
+        criteria = {
+            "inclusion_criteria": audit["inclusion_criteria"],
+            "exclusion_criteria": audit["exclusion_criteria"],
+        }
+        bundles = [
+            json.loads(p1.read_text()),
+            json.loads(p2.read_text()),
+            json.loads(p3.read_text()),
+        ]
         res = evaluate_cohort(criteria, bundles)["matching_results"]
         by_id = {r["patient_id"]: r for r in res}
         self.assertEqual(by_id["patient-001"]["overall_status"], "ELIGIBLE")
         self.assertEqual(by_id["patient-001"]["match_percentage"], 100.0)
         self.assertEqual(by_id["patient-002"]["overall_status"], "INELIGIBLE")
-        self.assertTrue(any(not e["passed"] for e in by_id["patient-002"]["inclusion_evaluations"]))
-        self.assertTrue(any(e["triggered"] for e in by_id["patient-002"]["exclusion_evaluations"]))
+        self.assertTrue(
+            any(not e["passed"] for e in by_id["patient-002"]["inclusion_evaluations"])
+        )
+        self.assertTrue(
+            any(e["triggered"] for e in by_id["patient-002"]["exclusion_evaluations"])
+        )
         self.assertEqual(by_id["patient-003"]["overall_status"], "REVIEW_REQUIRED")
         self.assertGreaterEqual(len(by_id["patient-003"]["physician_action_items"]), 2)
-        exc02 = [e for e in by_id["patient-003"]["exclusion_evaluations"]
-                 if e["criterion_id"] == "EXC-02"][0]
+        exc02 = [
+            e
+            for e in by_id["patient-003"]["exclusion_evaluations"]
+            if e["criterion_id"] == "EXC-02"
+        ][0]
         self.assertFalse(exc02["triggered"])  # negated brain note is not evidence
 
 
 class SiteSafetyTest(unittest.TestCase):
     def test_site_scoring_and_triage(self):
         sites = [
-            {"id": "SITE-001", "name": "A", "country": "USA",
-             "historical_activation_days": 75, "regulatory_tier": "Tier 1",
-             "active_competing_trials": 3, "past_accrual_per_month": 2.8,
-             "staff_capacity_score": 90},
-            {"id": "SITE-002", "name": "B", "country": "India",
-             "historical_activation_days": 140, "regulatory_tier": "Tier 3",
-             "active_competing_trials": 7, "past_accrual_per_month": 1.2,
-             "staff_capacity_score": 60},
+            {
+                "id": "SITE-001",
+                "name": "A",
+                "country": "USA",
+                "historical_activation_days": 75,
+                "regulatory_tier": "Tier 1",
+                "active_competing_trials": 3,
+                "past_accrual_per_month": 2.8,
+                "staff_capacity_score": 90,
+            },
+            {
+                "id": "SITE-002",
+                "name": "B",
+                "country": "India",
+                "historical_activation_days": 140,
+                "regulatory_tier": "Tier 3",
+                "active_competing_trials": 7,
+                "past_accrual_per_month": 1.2,
+                "staff_capacity_score": 60,
+            },
         ]
         out = score_sites(sites, 450)
         recs = {s["site_id"]: s["recommendation"] for s in out["evaluated_sites"]}
@@ -130,13 +182,23 @@ class SiteSafetyTest(unittest.TestCase):
         self.assertEqual(recs["SITE-002"], "NO-GO")
         self.assertEqual(out["portfolio_summary"]["total_sites_analyzed"], 2)
 
-        triaged = triage_records([
-            {"discrepancy_id": "D1", "patient_id": "P",
-             "reported_term": "Febrile neutropenia with inpatient hospitalization",
-             "severity": "SEVERE", "unexpected": True},
-            {"discrepancy_id": "D2", "patient_id": "P",
-             "reported_term": "Mild nausea post-infusion", "severity": "MILD"},
-        ])["triaged_records"]
+        triaged = triage_records(
+            [
+                {
+                    "discrepancy_id": "D1",
+                    "patient_id": "P",
+                    "reported_term": "Febrile neutropenia with inpatient hospitalization",
+                    "severity": "SEVERE",
+                    "unexpected": True,
+                },
+                {
+                    "discrepancy_id": "D2",
+                    "patient_id": "P",
+                    "reported_term": "Mild nausea post-infusion",
+                    "severity": "MILD",
+                },
+            ]
+        )["triaged_records"]
         self.assertTrue(triaged[0]["is_sae"])
         self.assertTrue(triaged[0]["regulatory_alert_required"])
         self.assertEqual(triaged[0]["reporting_deadline_hours"], 360)
@@ -148,11 +210,14 @@ class LiveLookupTest(unittest.TestCase):
     def test_ctgov_lookup_never_crashes(self):
         import tempfile
         from unittest import mock
+
         from backend.agents import site_scout
+
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(site_scout, "CACHE", Path(tmp) / "cache.json"):
                 r = site_scout.fetch_ctgov_competitors(
-                    "xyz-no-such-condition-123", "Atlantis", timeout=6.0)
+                    "xyz-no-such-condition-123", "Atlantis", timeout=6.0
+                )
         self.assertIn(r["source"], ("live", "cache", "offline-fallback"))
         self.assertIsInstance(r["count"], int)
         self.assertGreaterEqual(r["count"], 0)
@@ -164,8 +229,16 @@ class StaticUITest(unittest.TestCase):
         for name in ("index.html", "styles.css", "app.js"):
             self.assertTrue((fe / name).exists(), f"missing frontend/{name}")
         html = (fe / "index.html").read_text()
-        for marker in ("app.js", "styles.css", "tab-audit", "tab-sites",
-                       "tab-cohort", "tab-safety", "snapshot", "stepper"):
+        for marker in (
+            "app.js",
+            "styles.css",
+            "tab-audit",
+            "tab-sites",
+            "tab-cohort",
+            "tab-safety",
+            "snapshot",
+            "stepper",
+        ):
             self.assertIn(marker, html)
         for absent in ("tab-diversity", "tab-external", "tab-twins"):
             self.assertNotIn(absent, html)

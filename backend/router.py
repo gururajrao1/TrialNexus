@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("TrialNexusRouter")
 
@@ -27,7 +27,7 @@ def _strip_fences(text: str) -> str:
     return text.strip()
 
 
-def _json_repair(text: str) -> Dict[str, Any]:
+def _json_repair(text: str) -> dict[str, Any]:
     """Best-effort parse of model output into a dict."""
     text = _strip_fences(text)
     try:
@@ -52,7 +52,9 @@ class ZeroCostRouter:
         self.base_url = base_url.rstrip("/")
         self.model = model
 
-    async def execute_query(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
+    async def execute_query(
+        self, system_prompt: str, user_prompt: str
+    ) -> dict[str, Any]:
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -70,8 +72,8 @@ class ZeroCostRouter:
             }
 
     async def _call_ollama(
-        self, messages: List[Dict[str, str]], timeout: float
-    ) -> Dict[str, Any]:
+        self, messages: list[dict[str, str]], timeout: float
+    ) -> dict[str, Any]:
         import httpx  # core dep, imported lazily
 
         payload = {"model": self.model, "messages": messages, "temperature": 0.1}
