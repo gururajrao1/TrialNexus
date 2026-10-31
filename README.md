@@ -1,8 +1,12 @@
-# TrialNexus OS — zero-cost local build
+# TrialNexus OS — zero-cost local build (MVP branch)
 
-Multi-agent clinical trials intelligence (protocol audit, site feasibility,
-cohort matching, safety triage) running fully offline. No OpenRouter, no
-Nemotron, no NIM, no API keys, no model downloads.
+> MVP branch: the cookbook 4-agent core (protocol audit, site feasibility,
+> cohort matching, safety triage) with a 4-tab UI. The full product
+> (13 tabs, diversity, startup, monitoring, finder, twins, mCODE, …)
+> lives on the `main` branch.
+
+Multi-agent clinical trials intelligence running fully offline. No OpenRouter,
+no Nemotron, no NIM, no API keys, no model downloads.
 
 ## How it works without LLMs
 
@@ -70,8 +74,3 @@ OneDrive tip: right-click `.venv` → "Free up space" to keep it on-demand.
 - `POST /api/match-cohort`
 - `POST /api/triage-safety`
 - `GET /api/snapshot`, `GET /api/demo-data` (UI feeds)
-- `POST /api/diversity-plan`, `GET /api/diversity-defaults`
-- `GET /api/history/cohort`, `/api/history/safety`, `/api/export/*.csv`
-- `GET /api/protocol-structure/{id}`, `/api/burden/{id}`
-- `GET /api/startup`, `POST /api/startup/{site}/advance`
-- `GET /api/monitoring`, `POST /api/find-trials`, `/api/external-control`

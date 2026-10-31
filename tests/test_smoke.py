@@ -1,4 +1,5 @@
-"""TrialNexus smoke tests. Stdlib only (unittest). Run from project root:
+"""TrialNexus smoke tests (MVP: 4 cookbook agents). Stdlib only (unittest).
+Run from project root:
 
     python -m unittest discover -s tests -v
 """
@@ -143,113 +144,6 @@ class SiteSafetyTest(unittest.TestCase):
         self.assertFalse(triaged[1]["regulatory_alert_required"])
 
 
-class KRITest(unittest.TestCase):
-    def test_thresholds(self):
-        from backend.agents.kri_monitor import portfolio_kris
-        rows = {
-            "GOOD": [{"month": "2025-05", "enrolled": 3, "screened": 4,
-                      "open_queries": 3, "deviations": 1, "sae": 0}],
-            "BAD": [{"month": "2025-05", "enrolled": 0, "screened": 2,
-                     "open_queries": 8, "deviations": 5, "sae": 1}],
-        }
-        r = portfolio_kris(rows, {"GOOD": 3, "BAD": 3})
-        by_id = {s["site_id"]: s for s in r["sites"]}
-        self.assertEqual(by_id["GOOD"]["worst"], "ok")
-        self.assertEqual(by_id["BAD"]["worst"], "alert")
-        self.assertIn("BAD", r["alert_site_ids"])
-        self.assertNotIn("GOOD", r["alert_site_ids"])
-
-
-class FinderTest(unittest.TestCase):
-    def test_ranking_prefers_right_trial(self):
-        from backend.agents.trial_finder import rank_trials
-        specs = [("PROT-TNX-001", "protocol_oncology_phase3.txt"),
-                 ("PROT-TNX-002", "protocol_breast_phase2.txt"),
-                 ("PROT-TNX-003", "protocol_diabetes_phase2.txt")]
-        protocols = []
-        for pid, fname in specs:
-            f = PROTOCOL_FILE.parent / fname
-            if not f.exists():
-                self.skipTest("seed protocols missing")
-            a = parse_protocol(f.read_text())
-            protocols.append({"id": pid, "title": pid, "phase": "",
-                              "criteria": {"inclusion_criteria": a["inclusion_criteria"],
-                                           "exclusion_criteria": a["exclusion_criteria"]}})
-        b004 = json.loads((FHIR_DIR / "patient_004_her2.json").read_text())
-        r004 = rank_trials(b004, protocols)
-        self.assertEqual(len(r004["ranked"]), 3)
-        self.assertEqual(r004["ranked"][0]["protocol_id"], "PROT-TNX-002")
-        self.assertEqual(r004["ranked"][0]["status"], "ELIGIBLE")
-        b005 = json.loads((FHIR_DIR / "patient_005_diabetes.json").read_text())
-        r005 = rank_trials(b005, protocols)
-        self.assertEqual(r005["ranked"][0]["protocol_id"], "PROT-TNX-003")
-        self.assertEqual(r005["ranked"][0]["status"], "ELIGIBLE")
-
-
-class ExternalControlTest(unittest.TestCase):
-    def test_pool_grows_with_relaxation(self):
-        from backend.agents.external_control import build_external_control
-        if not PROTOCOL_FILE.exists():
-            self.skipTest("seed protocol missing")
-        a = parse_protocol(PROTOCOL_FILE.read_text())
-        crit = {"inclusion_criteria": a["inclusion_criteria"],
-                "exclusion_criteria": a["exclusion_criteria"]}
-        bundles = []
-        for f in sorted(FHIR_DIR.glob("*.json")):
-            bundles.append(json.loads(f.read_text()))
-        self.assertGreaterEqual(len(bundles), 5)
-        r = build_external_control(crit, bundles, ["INC-04", "EXC-01"])
-        self.assertEqual({p["patient_id"] for p in r["pool"]},
-                         {"patient-001", "patient-002"})
-        self.assertEqual(len(r["near_miss"]), 3)
-        self.assertIn("INC-04", r["methods_note"])
-        self.assertIn("race", r["comparability"]["pool_mix"])
-
-
-class StructureExportTest(unittest.TestCase):
-    @unittest.skipUnless(PROTOCOL_FILE.exists(), "seed protocol missing")
-    def test_structure_package(self):
-        from backend.agents.structured_export import build_structure
-        raw = PROTOCOL_FILE.read_text()
-        s = build_structure(parse_protocol(raw), "PROT-TNX-001", raw)
-        self.assertIn("M11", s["m11Mapping"])
-        self.assertEqual(len(s["eligibility"]["inclusion"]), 5)
-        self.assertEqual(len(s["eligibility"]["exclusion"]), 4)
-        self.assertEqual(s["schedule"]["visit_days"], [1, 14, 16])
-        self.assertEqual(s["study"]["id"], "PROT-TNX-001")
-
-
-class BurdenTest(unittest.TestCase):
-    @unittest.skipUnless(PROTOCOL_FILE.exists(), "seed protocol missing")
-    def test_seed_burden(self):
-        from backend.agents.burden_scorer import score_burden
-        b = score_burden(PROTOCOL_FILE.read_text())
-        scores = {v["day"]: v["score"] for v in b["visits"]}
-        self.assertEqual(scores, {"1": 18, "14": 10, "16": 3})
-        self.assertEqual(b["convertible_pct"], 33.3)
-        self.assertTrue(b["verdict"].startswith("High"))
-
-
-class StartupTrackerTest(unittest.TestCase):
-    def test_flags_and_advance_in_temp_copy(self):
-        import tempfile
-        from backend.agents.startup_tracker import startup_report
-        from backend.database import list_startup, upsert_startup_site
-        with tempfile.TemporaryDirectory() as tmp:
-            db = Path(tmp) / "t.db"
-            init_db(db)
-            upsert_startup_site("S1", "identified", day="2025-01-01", db_path=db)
-            upsert_startup_site("S1", "feasibility", day="2025-02-01", db_path=db)
-            upsert_startup_site("S2", "activated", day="2025-05-01", db_path=db)
-            r = startup_report(list_startup(db), [], today="2026-01-01")
-            self.assertIn("S1", r["flagged_site_ids"])
-            self.assertNotIn("S2", r["flagged_site_ids"])
-            upsert_startup_site("S1", "contract", day="2026-01-01", db_path=db)
-            r2 = startup_report(list_startup(db), [], today="2026-01-01")
-            row = [s for s in r2["sites"] if s["site_id"] == "S1"][0]
-            self.assertEqual(row["stage"], "contract")
-
-
 class LiveLookupTest(unittest.TestCase):
     def test_ctgov_lookup_never_crashes(self):
         import tempfile
@@ -264,25 +158,6 @@ class LiveLookupTest(unittest.TestCase):
         self.assertGreaterEqual(r["count"], 0)
 
 
-class DiversityTest(unittest.TestCase):
-    def test_seed_cohort_mix(self):
-        from backend.agents.diversity_planner import plan_diversity
-        bundles = [json.loads((FHIR_DIR / f).read_text()) for f in
-                   ("patient_001_breast_cancer.json", "patient_002_control.json",
-                    "patient_003_review.json")]
-        r = plan_diversity(bundles)
-        self.assertEqual(r["n"], 3)
-        by = {d: {x["group"]: x for x in rows} for d, rows in r["dimensions"].items()}
-        self.assertEqual(by["sex"]["female"]["n"], 2)
-        self.assertEqual(by["sex"]["male"]["n"], 1)
-        self.assertEqual(by["race"]["White"]["n"], 1)
-        self.assertEqual(by["race"]["Asian"]["n"], 1)
-        self.assertEqual(by["race"]["Black or African American"]["n"], 1)
-        self.assertEqual(by["ethnicity"]["Hispanic or Latino"]["n"], 1)
-        self.assertGreaterEqual(len(r["focus_areas"]), 1)
-        self.assertIn(r["overall_status"], ("ready", "watch", "needs-work"))
-
-
 class StaticUITest(unittest.TestCase):
     def test_frontend_files_present_and_wired(self):
         fe = ROOT / "frontend"
@@ -290,10 +165,10 @@ class StaticUITest(unittest.TestCase):
             self.assertTrue((fe / name).exists(), f"missing frontend/{name}")
         html = (fe / "index.html").read_text()
         for marker in ("app.js", "styles.css", "tab-audit", "tab-sites",
-                       "tab-cohort", "tab-safety", "snapshot", "stepper",
-                       "tab-startup", "tab-diversity", "tab-history",
-                       "tab-monitoring", "tab-finder", "tab-external"):
+                       "tab-cohort", "tab-safety", "snapshot", "stepper"):
             self.assertIn(marker, html)
+        for absent in ("tab-diversity", "tab-external", "tab-twins"):
+            self.assertNotIn(absent, html)
         app_src = (ROOT / "backend" / "app.py").read_text()
         self.assertIn("StaticFiles", app_src)
         self.assertIn("/api/snapshot", app_src)
