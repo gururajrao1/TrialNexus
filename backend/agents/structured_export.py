@@ -10,28 +10,38 @@ from __future__ import annotations
 
 import re
 from datetime import date
-from typing import Any, Dict, List
+from typing import Any
 
 
-def _coded(criteria: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    return [{
-        "id": c.get("id"), "category": c.get("category"),
-        "variable": c.get("variable"), "operator": c.get("operator"),
-        "value": c.get("value"), "unit": c.get("unit"),
-        "flexibility": c.get("flexibility_rating"),
-    } for c in criteria]
+def _coded(criteria: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": c.get("id"),
+            "category": c.get("category"),
+            "variable": c.get("variable"),
+            "operator": c.get("operator"),
+            "value": c.get("value"),
+            "unit": c.get("unit"),
+            "flexibility": c.get("flexibility_rating"),
+        }
+        for c in criteria
+    ]
 
 
 def build_structure(
-    audit: Dict[str, Any], protocol_id: str, raw_text: str = ""
-) -> Dict[str, Any]:
+    audit: dict[str, Any], protocol_id: str, raw_text: str = ""
+) -> dict[str, Any]:
     """Build the structured package from an audit result."""
     md = audit.get("protocol_metadata", {}) or {}
-    days = sorted({int(d) for d in re.findall(r"\bDay\s+(\d+)", raw_text, re.IGNORECASE)})
+    days = sorted(
+        {int(d) for d in re.findall(r"\bDay\s+(\d+)", raw_text, re.IGNORECASE)}
+    )
     return {
         "documentType": "TrialNexus Structured Protocol v1",
-        "m11Mapping": ("ICH M11 CeSHarP-inspired sections (study, eligibility, "
-                       "schedule, quality); structural homage, not a certified file"),
+        "m11Mapping": (
+            "ICH M11 CeSHarP-inspired sections (study, eligibility, "
+            "schedule, quality); structural homage, not a certified file"
+        ),
         "study": {
             "id": protocol_id,
             "title": md.get("title", "Untitled"),

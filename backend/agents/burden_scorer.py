@@ -9,7 +9,7 @@ procedures (biopsy) highest, then imaging, PK-intensive sampling, labs/ECG.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 VISIT_RE = re.compile(r"\bDay\s+(\d+)", re.IGNORECASE)
 XN_RE = re.compile(r"x\s*(\d+)", re.IGNORECASE)
@@ -36,9 +36,9 @@ def _pk_units(window_low: str) -> int:
     return 1
 
 
-def _score_window(window: str) -> Tuple[List[str], int, int]:
+def _score_window(window: str) -> tuple[list[str], int, int]:
     low = window.lower()
-    procs: List[str] = []
+    procs: list[str] = []
     score = BASE_VISIT
     pk_units = 0
     for label, pattern, weight in RULES:
@@ -53,19 +53,24 @@ def _score_window(window: str) -> Tuple[List[str], int, int]:
     return procs, score, pk_units
 
 
-def score_burden(raw_text: str) -> Dict[str, Any]:
+def score_burden(raw_text: str) -> dict[str, Any]:
     """Score every visit day found in protocol text."""
     matches = list(VISIT_RE.finditer(raw_text))
-    by_day: Dict[str, Dict[str, Any]] = {}
+    by_day: dict[str, dict[str, Any]] = {}
     for i, m in enumerate(matches):
         day = m.group(1)
         end = matches[i + 1].start() if i + 1 < len(matches) else m.start() + 150
-        window = raw_text[m.start():min(end, m.start() + 150)]
+        window = raw_text[m.start() : min(end, m.start() + 150)]
         procs, score, pk_units = _score_window(window)
         prev = by_day.get(day)
         if prev is None or score > prev["score"]:
-            by_day[day] = {"day": day, "mentions": 0, "procedures": procs,
-                           "pk_units": pk_units, "score": score}
+            by_day[day] = {
+                "day": day,
+                "mentions": 0,
+                "procedures": procs,
+                "pk_units": pk_units,
+                "score": score,
+            }
         by_day[day]["mentions"] += 1
     visits = []
     for day in sorted(by_day, key=int):
@@ -89,7 +94,13 @@ def score_burden(raw_text: str) -> Dict[str, Any]:
         verdict = "Moderate"
     else:
         verdict = "Low"
-    return {"visits": visits, "total_score": total,
-            "convertible_pct": pct, "verdict": verdict,
-            "basis": ("Weights follow reported burden drivers (invasive > imaging > "
-                      "PK-intensive > labs/ECG); remote fit excludes invasive/PK-heavy visits.")}
+    return {
+        "visits": visits,
+        "total_score": total,
+        "convertible_pct": pct,
+        "verdict": verdict,
+        "basis": (
+            "Weights follow reported burden drivers (invasive > imaging > "
+            "PK-intensive > labs/ECG); remote fit excludes invasive/PK-heavy visits."
+        ),
+    }

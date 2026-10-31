@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from backend.config import DB_PATH as DEFAULT_DB
 from backend.config import SCHEMA_VERSION
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 """
 
 
-def get_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
+def get_connection(db_path: Path | None = None) -> sqlite3.Connection:
     path = Path(db_path) if db_path else DEFAULT_DB
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
@@ -89,7 +89,7 @@ def get_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
     return conn
 
 
-def init_db(db_path: Optional[Path] = None) -> Path:
+def init_db(db_path: Path | None = None) -> Path:
     path = Path(db_path) if db_path else DEFAULT_DB
     conn = get_connection(path)
     try:
@@ -104,7 +104,7 @@ def init_db(db_path: Optional[Path] = None) -> Path:
     return path
 
 
-def get_schema_version(db_path: Optional[Path] = None) -> int:
+def get_schema_version(db_path: Path | None = None) -> int:
     conn = get_connection(db_path)
     try:
         row = conn.execute(
@@ -121,7 +121,7 @@ def insert_protocol(
     phase: str,
     indication: str,
     raw_content: str,
-    db_path: Optional[Path] = None,
+    db_path: Path | None = None,
 ) -> None:
     conn = get_connection(db_path)
     try:
@@ -135,7 +135,9 @@ def insert_protocol(
         conn.close()
 
 
-def get_protocol(protocol_id: str, db_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+def get_protocol(
+    protocol_id: str, db_path: Path | None = None
+) -> dict[str, Any] | None:
     conn = get_connection(db_path)
     try:
         row = conn.execute(
@@ -148,9 +150,9 @@ def get_protocol(protocol_id: str, db_path: Optional[Path] = None) -> Optional[D
 
 def save_protocol_audit(
     protocol_id: str,
-    structured_ie: Dict[str, Any],
-    audit: Dict[str, Any],
-    db_path: Optional[Path] = None,
+    structured_ie: dict[str, Any],
+    audit: dict[str, Any],
+    db_path: Path | None = None,
 ) -> None:
     conn = get_connection(db_path)
     try:
@@ -163,7 +165,7 @@ def save_protocol_audit(
         conn.close()
 
 
-def upsert_site(site: Dict[str, Any], db_path: Optional[Path] = None) -> None:
+def upsert_site(site: dict[str, Any], db_path: Path | None = None) -> None:
     conn = get_connection(db_path)
     try:
         conn.execute(
@@ -193,7 +195,7 @@ def upsert_site(site: Dict[str, Any], db_path: Optional[Path] = None) -> None:
 
 
 def save_site_feasibility(
-    site_id: str, score: float, analysis: Dict[str, Any], db_path: Optional[Path] = None
+    site_id: str, score: float, analysis: dict[str, Any], db_path: Path | None = None
 ) -> None:
     conn = get_connection(db_path)
     try:
@@ -207,7 +209,7 @@ def save_site_feasibility(
         conn.close()
 
 
-def list_sites(db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+def list_sites(db_path: Path | None = None) -> list[dict[str, Any]]:
     conn = get_connection(db_path)
     try:
         return [dict(r) for r in conn.execute("SELECT * FROM sites").fetchall()]
@@ -215,7 +217,7 @@ def list_sites(db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
         conn.close()
 
 
-def table_counts(db_path: Optional[Path] = None) -> Dict[str, int]:
+def table_counts(db_path: Path | None = None) -> dict[str, int]:
     conn = get_connection(db_path)
     try:
         return {
@@ -226,7 +228,7 @@ def table_counts(db_path: Optional[Path] = None) -> Dict[str, int]:
         conn.close()
 
 
-def insert_patient_evaluation(row: Dict[str, Any], db_path: Optional[Path] = None) -> None:
+def insert_patient_evaluation(row: dict[str, Any], db_path: Path | None = None) -> None:
     conn = get_connection(db_path)
     try:
         conn.execute(
@@ -251,8 +253,8 @@ def insert_patient_evaluation(row: Dict[str, Any], db_path: Optional[Path] = Non
 
 
 def list_patient_evaluations(
-    protocol_id: Optional[str] = None, limit: int = 200, db_path: Optional[Path] = None
-) -> List[Dict[str, Any]]:
+    protocol_id: str | None = None, limit: int = 200, db_path: Path | None = None
+) -> list[dict[str, Any]]:
     conn = get_connection(db_path)
     try:
         if protocol_id:
@@ -271,7 +273,7 @@ def list_patient_evaluations(
         conn.close()
 
 
-def insert_safety_query(row: Dict[str, Any], db_path: Optional[Path] = None) -> None:
+def insert_safety_query(row: dict[str, Any], db_path: Path | None = None) -> None:
     conn = get_connection(db_path)
     try:
         conn.execute(
@@ -299,8 +301,8 @@ def insert_safety_query(row: Dict[str, Any], db_path: Optional[Path] = None) -> 
 
 
 def list_safety_queries(
-    protocol_id: Optional[str] = None, limit: int = 200, db_path: Optional[Path] = None
-) -> List[Dict[str, Any]]:
+    protocol_id: str | None = None, limit: int = 200, db_path: Path | None = None
+) -> list[dict[str, Any]]:
     conn = get_connection(db_path)
     try:
         if protocol_id:
@@ -319,7 +321,9 @@ def list_safety_queries(
         conn.close()
 
 
-def get_startup_site(site_id: str, db_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+def get_startup_site(
+    site_id: str, db_path: Path | None = None
+) -> dict[str, Any] | None:
     conn = get_connection(db_path)
     try:
         row = conn.execute(
@@ -331,9 +335,12 @@ def get_startup_site(site_id: str, db_path: Optional[Path] = None) -> Optional[D
 
 
 def upsert_startup_site(
-    site_id: str, stage: str, day: Optional[str] = None, note: str = "",
-    db_path: Optional[Path] = None,
-) -> Dict[str, Any]:
+    site_id: str,
+    stage: str,
+    day: str | None = None,
+    note: str = "",
+    db_path: Path | None = None,
+) -> dict[str, Any]:
     """Set a site's pipeline stage, appending to its dated history."""
     from datetime import date as _date
 
@@ -348,8 +355,11 @@ def upsert_startup_site(
             hist = []  # re-identification restarts the trail (also makes seeding idempotent)
         if not hist or hist[-1]["stage"] != stage:
             hist.append({"stage": stage, "date": stamp, "note": note})
-        notes = ((row["notes"] + "\n" if row and row["notes"] else "") + note).strip() if note else (
-            row["notes"] if row else "")
+        notes = (
+            ((row["notes"] + "\n" if row and row["notes"] else "") + note).strip()
+            if note
+            else (row["notes"] if row else "")
+        )
         conn.execute(
             """INSERT INTO site_startup (site_id, stage, history, notes, updated_at)
                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -367,25 +377,31 @@ def upsert_startup_site(
         conn.close()
 
 
-def list_startup(db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+def list_startup(db_path: Path | None = None) -> list[dict[str, Any]]:
     conn = get_connection(db_path)
     try:
-        return [dict(r) for r in conn.execute(
-            "SELECT * FROM site_startup ORDER BY site_id").fetchall()]
+        return [
+            dict(r)
+            for r in conn.execute(
+                "SELECT * FROM site_startup ORDER BY site_id"
+            ).fetchall()
+        ]
     finally:
         conn.close()
 
 
-def list_protocols(db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+def list_protocols(db_path: Path | None = None) -> list[dict[str, Any]]:
     conn = get_connection(db_path)
     try:
-        return [dict(r) for r in conn.execute(
-            "SELECT * FROM protocols ORDER BY id").fetchall()]
+        return [
+            dict(r)
+            for r in conn.execute("SELECT * FROM protocols ORDER BY id").fetchall()
+        ]
     finally:
         conn.close()
 
 
-def insert_site_metric(row: Dict[str, Any], db_path: Optional[Path] = None) -> None:
+def insert_site_metric(row: dict[str, Any], db_path: Path | None = None) -> None:
     conn = get_connection(db_path)
     try:
         conn.execute(
@@ -393,9 +409,12 @@ def insert_site_metric(row: Dict[str, Any], db_path: Optional[Path] = None) -> N
                (site_id, month, enrolled, screened, open_queries, deviations, sae)
                VALUES (:site_id, :month, :enrolled, :screened, :open_queries, :deviations, :sae)""",
             {
-                "site_id": row["site_id"], "month": row["month"],
-                "enrolled": row["enrolled"], "screened": row["screened"],
-                "open_queries": row["open_queries"], "deviations": row["deviations"],
+                "site_id": row["site_id"],
+                "month": row["month"],
+                "enrolled": row["enrolled"],
+                "screened": row["screened"],
+                "open_queries": row["open_queries"],
+                "deviations": row["deviations"],
                 "sae": row["sae"],
             },
         )
@@ -404,10 +423,14 @@ def insert_site_metric(row: Dict[str, Any], db_path: Optional[Path] = None) -> N
         conn.close()
 
 
-def list_site_metrics(db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+def list_site_metrics(db_path: Path | None = None) -> list[dict[str, Any]]:
     conn = get_connection(db_path)
     try:
-        return [dict(r) for r in conn.execute(
-            "SELECT * FROM site_metrics ORDER BY site_id, month").fetchall()]
+        return [
+            dict(r)
+            for r in conn.execute(
+                "SELECT * FROM site_metrics ORDER BY site_id, month"
+            ).fetchall()
+        ]
     finally:
         conn.close()

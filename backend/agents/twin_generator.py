@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import copy
 import random
-from typing import Any, Dict, List
+from typing import Any
 
 from backend.agents.cohort_matcher import evaluate_patient
 
 
-def make_twins(bundle: Dict[str, Any], n: int, seed: int = 7,
-               jitter: float = 0.15) -> List[Dict[str, Any]]:
+def make_twins(
+    bundle: dict[str, Any], n: int, seed: int = 7, jitter: float = 0.15
+) -> list[dict[str, Any]]:
     """Clone a bundle n times with jittered numeric observations."""
     rng = random.Random(seed)
     twins = []
@@ -26,7 +27,7 @@ def make_twins(bundle: Dict[str, Any], n: int, seed: int = 7,
             if r.get("resourceType") != "Observation":
                 continue
             vq = r.get("valueQuantity")
-            if isinstance(vq, dict) and isinstance(vq.get("value"), (int, float)):
+            if isinstance(vq, dict) and isinstance(vq.get("value"), int | float):
                 vq["value"] = round(vq["value"] * (1 + rng.uniform(-jitter, jitter)), 1)
         base = str(bundle.get("id") or "twin")
         t["id"] = f"{base}-twin-{i + 1}"
@@ -38,15 +39,22 @@ def make_twins(bundle: Dict[str, Any], n: int, seed: int = 7,
     return twins
 
 
-def twin_distribution(criteria: Dict[str, Any], bundle: Dict[str, Any],
-                      n: int = 100, seed: int = 7) -> Dict[str, Any]:
+def twin_distribution(
+    criteria: dict[str, Any], bundle: dict[str, Any], n: int = 100, seed: int = 7
+) -> dict[str, Any]:
     """Eligibility distribution of n twins against structured criteria."""
     counts = {"ELIGIBLE": 0, "INELIGIBLE": 0, "REVIEW_REQUIRED": 0}
     for t in make_twins(bundle, n, seed):
         ev = evaluate_patient(criteria, t)
         counts[ev["overall_status"]] = counts.get(ev["overall_status"], 0) + 1
     total = max(1, sum(counts.values()))
-    return {"n": total, "seed": seed, "counts": counts,
-            "eligible_pct": round(100.0 * counts["ELIGIBLE"] / total, 1),
-            "note": ("Design exploration only: twins probe measurement "
-                     "sensitivity, never efficacy or safety.")}
+    return {
+        "n": total,
+        "seed": seed,
+        "counts": counts,
+        "eligible_pct": round(100.0 * counts["ELIGIBLE"] / total, 1),
+        "note": (
+            "Design exploration only: twins probe measurement "
+            "sensitivity, never efficacy or safety."
+        ),
+    }

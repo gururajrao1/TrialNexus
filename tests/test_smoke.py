@@ -1,6 +1,6 @@
 """TrialNexus smoke tests. Stdlib only (unittest). Run from project root:
 
-    python -m unittest discover -s tests -v
+python -m unittest discover -s tests -v
 """
 
 import asyncio
@@ -65,22 +65,50 @@ class DatabaseTest(unittest.TestCase):
             init_db(db)
             insert_protocol("P1", "T", "Phase 1", "Ind", "raw text", db)
             self.assertEqual(get_protocol("P1", db)["title"], "T")
-            upsert_site({"id": "S1", "name": "N", "country": "C", "city": "City",
-                         "historical_activation_days": 60, "regulatory_tier": "Tier 1",
-                         "active_competing_trials": 1}, db)
+            upsert_site(
+                {
+                    "id": "S1",
+                    "name": "N",
+                    "country": "C",
+                    "city": "City",
+                    "historical_activation_days": 60,
+                    "regulatory_tier": "Tier 1",
+                    "active_competing_trials": 1,
+                },
+                db,
+            )
             self.assertEqual(len(list_sites(db)), 1)
             counts = table_counts(db)
             self.assertEqual(counts["protocols"], 1)
             self.assertEqual(counts["sites"], 1)
             self.assertEqual(get_schema_version(db), 2)
-            insert_patient_evaluation({"id": "E1", "protocol_id": "P1", "patient_fhir_id": "PT-1",
-                                       "eligibility_status": "ELIGIBLE", "inclusion_match_score": 100.0,
-                                       "exclusion_conflict_count": 0, "rationale": {"a": 1}}, db)
-            insert_safety_query({"id": "Q1", "protocol_id": "P1", "patient_id": "PT-1",
-                                 "reported_term": "Nausea", "suspected_meddra_soc": "GI",
-                                 "severity": "MILD", "is_sae": False,
-                                 "reporting_timeline_hours": None, "query_text": "q",
-                                 "resolution_status": "TRIAGED"}, db)
+            insert_patient_evaluation(
+                {
+                    "id": "E1",
+                    "protocol_id": "P1",
+                    "patient_fhir_id": "PT-1",
+                    "eligibility_status": "ELIGIBLE",
+                    "inclusion_match_score": 100.0,
+                    "exclusion_conflict_count": 0,
+                    "rationale": {"a": 1},
+                },
+                db,
+            )
+            insert_safety_query(
+                {
+                    "id": "Q1",
+                    "protocol_id": "P1",
+                    "patient_id": "PT-1",
+                    "reported_term": "Nausea",
+                    "suspected_meddra_soc": "GI",
+                    "severity": "MILD",
+                    "is_sae": False,
+                    "reporting_timeline_hours": None,
+                    "query_text": "q",
+                    "resolution_status": "TRIAGED",
+                },
+                db,
+            )
             self.assertEqual(len(list_patient_evaluations("P1", db_path=db)), 1)
             self.assertEqual(len(list_safety_queries("P1", db_path=db)), 1)
             self.assertEqual(len(list_patient_evaluations("NOPE", db_path=db)), 0)
@@ -95,35 +123,59 @@ class CohortTest(unittest.TestCase):
         if not (p1.exists() and p2.exists() and p3.exists()):
             self.skipTest("seed FHIR bundles missing")
         audit = parse_protocol(PROTOCOL_FILE.read_text())
-        criteria = {"inclusion_criteria": audit["inclusion_criteria"],
-                    "exclusion_criteria": audit["exclusion_criteria"]}
-        bundles = [json.loads(p1.read_text()), json.loads(p2.read_text()),
-                   json.loads(p3.read_text())]
+        criteria = {
+            "inclusion_criteria": audit["inclusion_criteria"],
+            "exclusion_criteria": audit["exclusion_criteria"],
+        }
+        bundles = [
+            json.loads(p1.read_text()),
+            json.loads(p2.read_text()),
+            json.loads(p3.read_text()),
+        ]
         res = evaluate_cohort(criteria, bundles)["matching_results"]
         by_id = {r["patient_id"]: r for r in res}
         self.assertEqual(by_id["patient-001"]["overall_status"], "ELIGIBLE")
         self.assertEqual(by_id["patient-001"]["match_percentage"], 100.0)
         self.assertEqual(by_id["patient-002"]["overall_status"], "INELIGIBLE")
-        self.assertTrue(any(not e["passed"] for e in by_id["patient-002"]["inclusion_evaluations"]))
-        self.assertTrue(any(e["triggered"] for e in by_id["patient-002"]["exclusion_evaluations"]))
+        self.assertTrue(
+            any(not e["passed"] for e in by_id["patient-002"]["inclusion_evaluations"])
+        )
+        self.assertTrue(
+            any(e["triggered"] for e in by_id["patient-002"]["exclusion_evaluations"])
+        )
         self.assertEqual(by_id["patient-003"]["overall_status"], "REVIEW_REQUIRED")
         self.assertGreaterEqual(len(by_id["patient-003"]["physician_action_items"]), 2)
-        exc02 = [e for e in by_id["patient-003"]["exclusion_evaluations"]
-                 if e["criterion_id"] == "EXC-02"][0]
+        exc02 = [
+            e
+            for e in by_id["patient-003"]["exclusion_evaluations"]
+            if e["criterion_id"] == "EXC-02"
+        ][0]
         self.assertFalse(exc02["triggered"])  # negated brain note is not evidence
 
 
 class SiteSafetyTest(unittest.TestCase):
     def test_site_scoring_and_triage(self):
         sites = [
-            {"id": "SITE-001", "name": "A", "country": "USA",
-             "historical_activation_days": 75, "regulatory_tier": "Tier 1",
-             "active_competing_trials": 3, "past_accrual_per_month": 2.8,
-             "staff_capacity_score": 90},
-            {"id": "SITE-002", "name": "B", "country": "India",
-             "historical_activation_days": 140, "regulatory_tier": "Tier 3",
-             "active_competing_trials": 7, "past_accrual_per_month": 1.2,
-             "staff_capacity_score": 60},
+            {
+                "id": "SITE-001",
+                "name": "A",
+                "country": "USA",
+                "historical_activation_days": 75,
+                "regulatory_tier": "Tier 1",
+                "active_competing_trials": 3,
+                "past_accrual_per_month": 2.8,
+                "staff_capacity_score": 90,
+            },
+            {
+                "id": "SITE-002",
+                "name": "B",
+                "country": "India",
+                "historical_activation_days": 140,
+                "regulatory_tier": "Tier 3",
+                "active_competing_trials": 7,
+                "past_accrual_per_month": 1.2,
+                "staff_capacity_score": 60,
+            },
         ]
         out = score_sites(sites, 450)
         recs = {s["site_id"]: s["recommendation"] for s in out["evaluated_sites"]}
@@ -131,13 +183,23 @@ class SiteSafetyTest(unittest.TestCase):
         self.assertEqual(recs["SITE-002"], "NO-GO")
         self.assertEqual(out["portfolio_summary"]["total_sites_analyzed"], 2)
 
-        triaged = triage_records([
-            {"discrepancy_id": "D1", "patient_id": "P",
-             "reported_term": "Febrile neutropenia with inpatient hospitalization",
-             "severity": "SEVERE", "unexpected": True},
-            {"discrepancy_id": "D2", "patient_id": "P",
-             "reported_term": "Mild nausea post-infusion", "severity": "MILD"},
-        ])["triaged_records"]
+        triaged = triage_records(
+            [
+                {
+                    "discrepancy_id": "D1",
+                    "patient_id": "P",
+                    "reported_term": "Febrile neutropenia with inpatient hospitalization",
+                    "severity": "SEVERE",
+                    "unexpected": True,
+                },
+                {
+                    "discrepancy_id": "D2",
+                    "patient_id": "P",
+                    "reported_term": "Mild nausea post-infusion",
+                    "severity": "MILD",
+                },
+            ]
+        )["triaged_records"]
         self.assertTrue(triaged[0]["is_sae"])
         self.assertTrue(triaged[0]["regulatory_alert_required"])
         self.assertEqual(triaged[0]["reporting_deadline_hours"], 360)
@@ -148,11 +210,28 @@ class SiteSafetyTest(unittest.TestCase):
 class KRITest(unittest.TestCase):
     def test_thresholds(self):
         from backend.agents.kri_monitor import portfolio_kris
+
         rows = {
-            "GOOD": [{"month": "2025-05", "enrolled": 3, "screened": 4,
-                      "open_queries": 3, "deviations": 1, "sae": 0}],
-            "BAD": [{"month": "2025-05", "enrolled": 0, "screened": 2,
-                     "open_queries": 8, "deviations": 5, "sae": 1}],
+            "GOOD": [
+                {
+                    "month": "2025-05",
+                    "enrolled": 3,
+                    "screened": 4,
+                    "open_queries": 3,
+                    "deviations": 1,
+                    "sae": 0,
+                }
+            ],
+            "BAD": [
+                {
+                    "month": "2025-05",
+                    "enrolled": 0,
+                    "screened": 2,
+                    "open_queries": 8,
+                    "deviations": 5,
+                    "sae": 1,
+                }
+            ],
         }
         r = portfolio_kris(rows, {"GOOD": 3, "BAD": 3})
         by_id = {s["site_id"]: s for s in r["sites"]}
@@ -165,18 +244,29 @@ class KRITest(unittest.TestCase):
 class FinderTest(unittest.TestCase):
     def test_ranking_prefers_right_trial(self):
         from backend.agents.trial_finder import rank_trials
-        specs = [("PROT-TNX-001", "protocol_oncology_phase3.txt"),
-                 ("PROT-TNX-002", "protocol_breast_phase2.txt"),
-                 ("PROT-TNX-003", "protocol_diabetes_phase2.txt")]
+
+        specs = [
+            ("PROT-TNX-001", "protocol_oncology_phase3.txt"),
+            ("PROT-TNX-002", "protocol_breast_phase2.txt"),
+            ("PROT-TNX-003", "protocol_diabetes_phase2.txt"),
+        ]
         protocols = []
         for pid, fname in specs:
             f = PROTOCOL_FILE.parent / fname
             if not f.exists():
                 self.skipTest("seed protocols missing")
             a = parse_protocol(f.read_text())
-            protocols.append({"id": pid, "title": pid, "phase": "",
-                              "criteria": {"inclusion_criteria": a["inclusion_criteria"],
-                                           "exclusion_criteria": a["exclusion_criteria"]}})
+            protocols.append(
+                {
+                    "id": pid,
+                    "title": pid,
+                    "phase": "",
+                    "criteria": {
+                        "inclusion_criteria": a["inclusion_criteria"],
+                        "exclusion_criteria": a["exclusion_criteria"],
+                    },
+                }
+            )
         b004 = json.loads((FHIR_DIR / "patient_004_her2.json").read_text())
         r004 = rank_trials(b004, protocols)
         self.assertEqual(len(r004["ranked"]), 3)
@@ -191,18 +281,22 @@ class FinderTest(unittest.TestCase):
 class ExternalControlTest(unittest.TestCase):
     def test_pool_grows_with_relaxation(self):
         from backend.agents.external_control import build_external_control
+
         if not PROTOCOL_FILE.exists():
             self.skipTest("seed protocol missing")
         a = parse_protocol(PROTOCOL_FILE.read_text())
-        crit = {"inclusion_criteria": a["inclusion_criteria"],
-                "exclusion_criteria": a["exclusion_criteria"]}
+        crit = {
+            "inclusion_criteria": a["inclusion_criteria"],
+            "exclusion_criteria": a["exclusion_criteria"],
+        }
         bundles = []
         for f in sorted(FHIR_DIR.glob("*.json")):
             bundles.append(json.loads(f.read_text()))
         self.assertGreaterEqual(len(bundles), 5)
         r = build_external_control(crit, bundles, ["INC-04", "EXC-01"])
-        self.assertEqual({p["patient_id"] for p in r["pool"]},
-                         {"patient-001", "patient-002"})
+        self.assertEqual(
+            {p["patient_id"] for p in r["pool"]}, {"patient-001", "patient-002"}
+        )
         self.assertEqual(len(r["near_miss"]), 3)
         self.assertIn("INC-04", r["methods_note"])
         self.assertIn("race", r["comparability"]["pool_mix"])
@@ -212,6 +306,7 @@ class StructureExportTest(unittest.TestCase):
     @unittest.skipUnless(PROTOCOL_FILE.exists(), "seed protocol missing")
     def test_structure_package(self):
         from backend.agents.structured_export import build_structure
+
         raw = PROTOCOL_FILE.read_text()
         s = build_structure(parse_protocol(raw), "PROT-TNX-001", raw)
         self.assertIn("M11", s["m11Mapping"])
@@ -225,6 +320,7 @@ class BurdenTest(unittest.TestCase):
     @unittest.skipUnless(PROTOCOL_FILE.exists(), "seed protocol missing")
     def test_seed_burden(self):
         from backend.agents.burden_scorer import score_burden
+
         b = score_burden(PROTOCOL_FILE.read_text())
         scores = {v["day"]: v["score"] for v in b["visits"]}
         self.assertEqual(scores, {"1": 18, "14": 10, "16": 3})
@@ -235,8 +331,10 @@ class BurdenTest(unittest.TestCase):
 class StartupTrackerTest(unittest.TestCase):
     def test_flags_and_advance_in_temp_copy(self):
         import tempfile
+
         from backend.agents.startup_tracker import startup_report
         from backend.database import list_startup, upsert_startup_site
+
         with tempfile.TemporaryDirectory() as tmp:
             db = Path(tmp) / "t.db"
             init_db(db)
@@ -256,11 +354,14 @@ class LiveLookupTest(unittest.TestCase):
     def test_ctgov_lookup_never_crashes(self):
         import tempfile
         from unittest import mock
+
         from backend.agents import site_scout
+
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(site_scout, "CACHE", Path(tmp) / "cache.json"):
                 r = site_scout.fetch_ctgov_competitors(
-                    "xyz-no-such-condition-123", "Atlantis", timeout=6.0)
+                    "xyz-no-such-condition-123", "Atlantis", timeout=6.0
+                )
         self.assertIn(r["source"], ("live", "cache", "offline-fallback"))
         self.assertIsInstance(r["count"], int)
         self.assertGreaterEqual(r["count"], 0)
@@ -269,9 +370,15 @@ class LiveLookupTest(unittest.TestCase):
 class DiversityTest(unittest.TestCase):
     def test_seed_cohort_mix(self):
         from backend.agents.diversity_planner import plan_diversity
-        bundles = [json.loads((FHIR_DIR / f).read_text()) for f in
-                   ("patient_001_breast_cancer.json", "patient_002_control.json",
-                    "patient_003_review.json")]
+
+        bundles = [
+            json.loads((FHIR_DIR / f).read_text())
+            for f in (
+                "patient_001_breast_cancer.json",
+                "patient_002_control.json",
+                "patient_003_review.json",
+            )
+        ]
         r = plan_diversity(bundles)
         self.assertEqual(r["n"], 3)
         by = {d: {x["group"]: x for x in rows} for d, rows in r["dimensions"].items()}
@@ -291,14 +398,27 @@ class StaticUITest(unittest.TestCase):
         for name in ("index.html", "styles.css", "app.js"):
             self.assertTrue((fe / name).exists(), f"missing frontend/{name}")
         html = (fe / "index.html").read_text()
-        for marker in ("app.js", "styles.css", "tab-audit", "tab-sites",
-                       "tab-cohort", "tab-safety", "snapshot", "stepper",
-                       "tab-startup", "tab-diversity", "tab-history",
-                       "tab-monitoring", "tab-finder", "tab-external"):
+        for marker in (
+            "app.js",
+            "styles.css",
+            "tab-audit",
+            "tab-sites",
+            "tab-cohort",
+            "tab-safety",
+            "snapshot",
+            "stepper",
+            "tab-startup",
+            "tab-diversity",
+            "tab-history",
+            "tab-monitoring",
+            "tab-finder",
+            "tab-external",
+        ):
             self.assertIn(marker, html)
         app_src = (ROOT / "backend" / "app.py").read_text()
-        routes_src = "".join(p.read_text() for p in
-                             (ROOT / "backend" / "routes").glob("*.py"))
+        routes_src = "".join(
+            p.read_text() for p in (ROOT / "backend" / "routes").glob("*.py")
+        )
         src = app_src + routes_src
         self.assertIn("StaticFiles", src)
         self.assertIn("/api/snapshot", src)

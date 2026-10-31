@@ -12,13 +12,13 @@ on HINT's public data (futianfan/clinicaltrialoutcomeprediction).
 from __future__ import annotations
 
 import re
-from typing import Any, Dict
+from typing import Any
 
 PHASE_CUMULATIVE = {"1": 0.10, "2": 0.15, "3": 0.49}
 SAFETY_CATEGORIES = ("Cardiac", "Hepatic", "Renal")
 
 
-def outlook(audit: Dict[str, Any], burden: Dict[str, Any]) -> Dict[str, Any]:
+def outlook(audit: dict[str, Any], burden: dict[str, Any]) -> dict[str, Any]:
     """Success probability + 4-way failure allocation with drivers."""
     phase = str((audit.get("protocol_metadata", {}) or {}).get("phase", ""))
     m = re.search(r"[123]", phase)
@@ -28,8 +28,11 @@ def outlook(audit: Dict[str, Any], burden: Dict[str, Any]) -> Dict[str, Any]:
     frag_disc = 1.0 - min(frag, 100.0) / 100.0 * 0.5
     burden_disc = 1.0 - min(total_burden, 60.0) / 100.0 * 0.3
     p = max(0.01, min(0.95, base * frag_disc * burden_disc))
-    n_safety = sum(1 for c in audit.get("exclusion_criteria", [])
-                   if c.get("category") in SAFETY_CATEGORIES)
+    n_safety = sum(
+        1
+        for c in audit.get("exclusion_criteria", [])
+        if c.get("category") in SAFETY_CATEGORIES
+    )
     w_enroll = frag / 100.0 + total_burden / 60.0 + 0.2
     w_safety = 0.3 + 0.25 * n_safety
     w_eff = 0.6
@@ -49,7 +52,9 @@ def outlook(audit: Dict[str, Any], burden: Dict[str, Any]) -> Dict[str, Any]:
             f"burden discount x{burden_disc:.2f} (score {total_burden})",
             f"{n_safety} organ-safety exclusions shape the safety share",
         ],
-        "basis": ("Heuristic bootloader: phase base rates x fragility/burden "
-                  "discounts; 4-way schema follows TrialBench. Fit on HINT "
-                  "public data to graduate from heuristic to model."),
+        "basis": (
+            "Heuristic bootloader: phase base rates x fragility/burden "
+            "discounts; 4-way schema follows TrialBench. Fit on HINT "
+            "public data to graduate from heuristic to model."
+        ),
     }

@@ -4,7 +4,7 @@ mCODE summary, n2c2 validity."""
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -24,27 +24,27 @@ router = APIRouter()
 
 
 class ForecastRequest(BaseModel):
-    sites: List[Dict[str, Any]]
+    sites: list[dict[str, Any]]
     target_enrollment: int
     enrolled_so_far: int = 0
-    deadline_months: Optional[float] = None
+    deadline_months: float | None = None
     seed: int = 42
 
 
 class TwinsRequest(BaseModel):
     protocol_id: str
-    bundle: Optional[Dict[str, Any]] = None
-    bundle_id: Optional[str] = None
+    bundle: dict[str, Any] | None = None
+    bundle_id: str | None = None
     n: int = 100
     seed: int = 7
 
 
 class McodeRequest(BaseModel):
-    bundle: Dict[str, Any]
+    bundle: dict[str, Any]
 
 
 @router.get("/api/trial-outlook/{protocol_id}")
-def trial_outlook(protocol_id: str) -> Dict[str, Any]:
+def trial_outlook(protocol_id: str) -> dict[str, Any]:
     init_db()
     proto = get_protocol(protocol_id)
     if not proto:
@@ -52,20 +52,30 @@ def trial_outlook(protocol_id: str) -> Dict[str, Any]:
     audit = json.loads(proto["audit_results"]) if proto["audit_results"] else None
     if not audit:
         audit = parse_protocol(proto["raw_content"])
-        save_protocol_audit(protocol_id, {
-            "inclusion_criteria": audit["inclusion_criteria"],
-            "exclusion_criteria": audit["exclusion_criteria"]}, audit)
+        save_protocol_audit(
+            protocol_id,
+            {
+                "inclusion_criteria": audit["inclusion_criteria"],
+                "exclusion_criteria": audit["exclusion_criteria"],
+            },
+            audit,
+        )
     return outlook(audit, score_burden(proto["raw_content"]))
 
 
 @router.post("/api/forecast")
-def forecast_endpoint(body: ForecastRequest) -> Dict[str, Any]:
-    return forecast(body.sites, body.target_enrollment, body.enrolled_so_far,
-                    body.deadline_months, seed=body.seed)
+def forecast_endpoint(body: ForecastRequest) -> dict[str, Any]:
+    return forecast(
+        body.sites,
+        body.target_enrollment,
+        body.enrolled_so_far,
+        body.deadline_months,
+        seed=body.seed,
+    )
 
 
 @router.post("/api/twins")
-def twins_endpoint(body: TwinsRequest) -> Dict[str, Any]:
+def twins_endpoint(body: TwinsRequest) -> dict[str, Any]:
     init_db()
     bundle = body.bundle
     if bundle is None and body.bundle_id:
@@ -75,20 +85,26 @@ def twins_endpoint(body: TwinsRequest) -> Dict[str, Any]:
         bundle = json.loads(p.read_text())
     if bundle is None:
         raise HTTPException(status_code=400, detail="Provide bundle or bundle_id")
-    return twin_distribution(audited_criteria(body.protocol_id), bundle, body.n, body.seed)
+    return twin_distribution(
+        audited_criteria(body.protocol_id), bundle, body.n, body.seed
+    )
 
 
 @router.post("/api/mcode")
-def mcode_endpoint(body: McodeRequest) -> Dict[str, Any]:
+def mcode_endpoint(body: McodeRequest) -> dict[str, Any]:
     return mcode_profile(body.bundle)
 
 
 @router.get("/api/n2c2-status")
-def n2c2_status() -> Dict[str, Any]:
+def n2c2_status() -> dict[str, Any]:
     present = N2C2_DATA_DIR.exists() and any(N2C2_DATA_DIR.glob("*.txt"))
-    return {"fixture_f1": micro_f1(load_fixture())["micro_f1"],
-            "real_data_present": present,
-            "criteria": list(CRITERIA),
-            "instructions": ("Request n2c2 2018 cohort-selection data via the n2c2/Harvard DBMI "
-                             "data-use agreement, then place {id}.txt notes + labels.csv under "
-                             "data/n2c2/ and run: python -m backend.agents.n2c2_harness data/n2c2")}
+    return {
+        "fixture_f1": micro_f1(load_fixture())["micro_f1"],
+        "real_data_present": present,
+        "criteria": list(CRITERIA),
+        "instructions": (
+            "Request n2c2 2018 cohort-selection data via the n2c2/Harvard DBMI "
+            "data-use agreement, then place {id}.txt notes + labels.csv under "
+            "data/n2c2/ and run: python -m backend.agents.n2c2_harness data/n2c2"
+        ),
+    }

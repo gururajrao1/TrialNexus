@@ -1,4 +1,5 @@
 """Tier 1+2 regression: synonyms, notes, forecast, outlook, twins, mCODE, n2c2."""
+
 import json
 import sys
 import unittest
@@ -9,7 +10,8 @@ BACKEND = ROOT / "backend"
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(BACKEND))
 
-from agents.cohort_matcher import evaluate_patient as evaluate, clinical_notes  # noqa: E402
+from agents.cohort_matcher import clinical_notes  # noqa: E402
+from agents.cohort_matcher import evaluate_patient as evaluate  # noqa: E402
 from agents.enrollment_forecast import forecast  # noqa: E402
 from agents.mcode import mcode_profile  # noqa: E402
 from agents.n2c2_harness import load_fixture, micro_f1  # noqa: E402
@@ -27,21 +29,36 @@ def load_bundle(pid):
 
 
 def note_only_bundle():
-    return {"id": "note-only", "entry": [
-        {"resource": {"resourceType": "Patient", "id": "note-only",
-                      "birthDate": "1980-01-01"}},
-        {"resource": {"resourceType": "DocumentReference", "status": "current",
-                      "type": {"text": "Assessment"},
-                      "content": [{"text":
-                                   "EGFR Exon 19 deletion confirmed on NGS."}]}}]}
+    return {
+        "id": "note-only",
+        "entry": [
+            {
+                "resource": {
+                    "resourceType": "Patient",
+                    "id": "note-only",
+                    "birthDate": "1980-01-01",
+                }
+            },
+            {
+                "resource": {
+                    "resourceType": "DocumentReference",
+                    "status": "current",
+                    "type": {"text": "Assessment"},
+                    "content": [{"text": "EGFR Exon 19 deletion confirmed on NGS."}],
+                }
+            },
+        ],
+    }
 
 
 class Tier12Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.audit = parse_protocol(PROTO.read_text())
-        cls.crit = {"inclusion_criteria": cls.audit["inclusion_criteria"],
-                    "exclusion_criteria": cls.audit["exclusion_criteria"]}
+        cls.crit = {
+            "inclusion_criteria": cls.audit["inclusion_criteria"],
+            "exclusion_criteria": cls.audit["exclusion_criteria"],
+        }
 
     def test_synonym_paraphrase(self):
         self.assertIn("myocardial infarction", normalize("history of MI"))
@@ -52,10 +69,19 @@ class Tier12Tests(unittest.TestCase):
         self.assertTrue(any("EGFR" in n["text"] for n in notes))
 
     def test_inclusion_note_evidence(self):
-        crit = {"inclusion_criteria": [{"id": "INC-99", "category": "Biomarker",
-                 "raw_text": "EGFR Exon 19 deletion documented",
-                 "variable": "egfr", "operator": "==", "value": "positive"}],
-                "exclusion_criteria": []}
+        crit = {
+            "inclusion_criteria": [
+                {
+                    "id": "INC-99",
+                    "category": "Biomarker",
+                    "raw_text": "EGFR Exon 19 deletion documented",
+                    "variable": "egfr",
+                    "operator": "==",
+                    "value": "positive",
+                }
+            ],
+            "exclusion_criteria": [],
+        }
         ev = evaluate(crit, note_only_bundle())["inclusion_evaluations"][0]
         self.assertTrue(ev["passed"])
         self.assertFalse(ev["missing_data"])
@@ -63,20 +89,33 @@ class Tier12Tests(unittest.TestCase):
 
     def test_exclusion_note_evidence(self):
         b = load_bundle("patient_002_control")
-        b["entry"].append({"resource": {"resourceType": "DocumentReference",
-                                        "status": "current",
-            "type": {"text": "H&P"},
-            "content": [{"text": "Known brain metastases, untreated."}]}})
+        b["entry"].append(
+            {
+                "resource": {
+                    "resourceType": "DocumentReference",
+                    "status": "current",
+                    "type": {"text": "H&P"},
+                    "content": [{"text": "Known brain metastases, untreated."}],
+                }
+            }
+        )
         res = evaluate(self.crit, b)
-        exc = [e for e in res["exclusion_evaluations"]
-               if e["criterion_id"] == "EXC-02"][0]
+        exc = [
+            e for e in res["exclusion_evaluations"] if e["criterion_id"] == "EXC-02"
+        ][0]
         self.assertTrue(exc["triggered"])
         self.assertIn("note", exc["clinical_evidence_found"])
 
     def test_forecast_contract(self):
-        f = forecast([{"accrual": 2.0, "months_observed": 6},
-                      {"accrual": 1.0, "months_observed": 6}],
-                     450, 0, 24.0)
+        f = forecast(
+            [
+                {"accrual": 2.0, "months_observed": 6},
+                {"accrual": 1.0, "months_observed": 6},
+            ],
+            450,
+            0,
+            24.0,
+        )
         self.assertLessEqual(f["p10"], f["p50"])
         self.assertLessEqual(f["p50"], f["p90"])
         self.assertGreater(f["p10"], 0)
@@ -86,8 +125,10 @@ class Tier12Tests(unittest.TestCase):
 
     def test_forecast_deterministic(self):
         sites = [{"accrual": 2.0, "months_observed": 6}]
-        self.assertEqual(forecast(sites, 100, 10, 12.0, seed=9),
-                         forecast(sites, 100, 10, 12.0, seed=9))
+        self.assertEqual(
+            forecast(sites, 100, 10, 12.0, seed=9),
+            forecast(sites, 100, 10, 12.0, seed=9),
+        )
 
     def test_forecast_monotone(self):
         fast = forecast([{"accrual": 5.0, "months_observed": 12}], 100, seed=5)
@@ -98,22 +139,20 @@ class Tier12Tests(unittest.TestCase):
         o = outlook(self.audit, {"total_score": 20.0})
         self.assertGreaterEqual(o["success_probability"], 0.01)
         self.assertLessEqual(o["success_probability"], 0.95)
-        self.assertAlmostEqual(sum(o["failure_breakdown"].values()), 1.0,
-                               places=2)
+        self.assertAlmostEqual(sum(o["failure_breakdown"].values()), 1.0, places=2)
         self.assertEqual(len(o["drivers"]), 4)
 
     def test_twins_contract(self):
-        t = twin_distribution(self.crit,
-                              load_bundle("patient_001_breast_cancer"),
-                              n=100, seed=7)
+        t = twin_distribution(
+            self.crit, load_bundle("patient_001_breast_cancer"), n=100, seed=7
+        )
         self.assertEqual(t["n"], 100)
         self.assertEqual(sum(t["counts"].values()), 100)
         self.assertGreaterEqual(t["eligible_pct"], 0)
         self.assertLessEqual(t["eligible_pct"], 100)
 
     def test_mcode_lung(self):
-        p = mcode_profile(
-            load_bundle("patient_001_breast_cancer"))["profile"]
+        p = mcode_profile(load_bundle("patient_001_breast_cancer"))["profile"]
         self.assertIn("non-small cell lung cancer", p["cancer_type"].lower())
         self.assertIn("EGFR", p["biomarkers"])
         self.assertEqual(p["stage"], "IV (inferred: metastatic)")

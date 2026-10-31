@@ -10,29 +10,42 @@ from __future__ import annotations
 
 import math
 from datetime import date
-from typing import Any, Dict, List
+from typing import Any
 
 REF_DATE = date(2025, 6, 1)
 
-RACE_BUCKETS = ("White", "Black or African American", "Asian",
-                "American Indian or Alaska Native",
-                "Native Hawaiian or Pacific Islander", "Other / Unknown")
+RACE_BUCKETS = (
+    "White",
+    "Black or African American",
+    "Asian",
+    "American Indian or Alaska Native",
+    "Native Hawaiian or Pacific Islander",
+    "Other / Unknown",
+)
 ETH_BUCKETS = ("Hispanic or Latino", "Not Hispanic or Latino", "Unknown")
 SEX_BUCKETS = ("female", "male", "unknown")
 AGE_BUCKETS = ("18-39", "40-64", "65+")
 
-DEFAULT_TARGETS: Dict[str, Dict[str, float]] = {
-    "race": {"White": 59.0, "Black or African American": 13.0, "Asian": 6.0,
-             "American Indian or Alaska Native": 1.0,
-             "Native Hawaiian or Pacific Islander": 1.0, "Other / Unknown": 20.0},
-    "ethnicity": {"Hispanic or Latino": 19.0, "Not Hispanic or Latino": 79.0,
-                  "Unknown": 2.0},
+DEFAULT_TARGETS: dict[str, dict[str, float]] = {
+    "race": {
+        "White": 59.0,
+        "Black or African American": 13.0,
+        "Asian": 6.0,
+        "American Indian or Alaska Native": 1.0,
+        "Native Hawaiian or Pacific Islander": 1.0,
+        "Other / Unknown": 20.0,
+    },
+    "ethnicity": {
+        "Hispanic or Latino": 19.0,
+        "Not Hispanic or Latino": 79.0,
+        "Unknown": 2.0,
+    },
     "sex": {"female": 51.0, "male": 49.0},
     "age": {"18-39": 30.0, "40-64": 45.0, "65+": 25.0},
 }
 
 
-def _patient(bundle: Dict[str, Any]) -> Dict[str, Any]:
+def _patient(bundle: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(bundle, dict):
         return {}
     for e in bundle.get("entry", []):
@@ -42,7 +55,7 @@ def _patient(bundle: Dict[str, Any]) -> Dict[str, Any]:
     return {}
 
 
-def _omb_value(patient: Dict[str, Any], key: str) -> str:
+def _omb_value(patient: dict[str, Any], key: str) -> str:
     for ext in patient.get("extension", []) or []:
         if not isinstance(ext, dict):
             continue
@@ -84,12 +97,12 @@ def _eth_bucket(raw: str) -> str:
     return "Unknown"
 
 
-def _sex_bucket(patient: Dict[str, Any]) -> str:
+def _sex_bucket(patient: dict[str, Any]) -> str:
     g = str(patient.get("gender", "unknown")).lower()
     return g if g in ("female", "male") else "unknown"
 
 
-def _age_bucket(patient: Dict[str, Any]) -> str:
+def _age_bucket(patient: dict[str, Any]) -> str:
     birth = patient.get("birthDate")
     if not birth:
         return "unknown"
@@ -115,25 +128,30 @@ def _need_to_enroll(actual: int, n: int, goal_pct: float) -> int:
 
 
 def plan_diversity(
-    bundles: List[Dict[str, Any]],
-    targets: Dict[str, Dict[str, float]] | None = None,
-) -> Dict[str, Any]:
+    bundles: list[dict[str, Any]],
+    targets: dict[str, dict[str, float]] | None = None,
+) -> dict[str, Any]:
     """Compare cohort mix vs goals; gaps in percentage points."""
     tg = targets or DEFAULT_TARGETS
     n = len(bundles)
-    counts: Dict[str, Dict[str, int]] = {
-        "race": {}, "ethnicity": {}, "sex": {}, "age": {},
+    counts: dict[str, dict[str, int]] = {
+        "race": {},
+        "ethnicity": {},
+        "sex": {},
+        "age": {},
     }
     for b in bundles:
         p = _patient(b)
-        counts["race"][_race_bucket(_omb_value(p, "race"))] = \
+        counts["race"][_race_bucket(_omb_value(p, "race"))] = (
             counts["race"].get(_race_bucket(_omb_value(p, "race")), 0) + 1
-        counts["ethnicity"][_eth_bucket(_omb_value(p, "ethnicity"))] = \
+        )
+        counts["ethnicity"][_eth_bucket(_omb_value(p, "ethnicity"))] = (
             counts["ethnicity"].get(_eth_bucket(_omb_value(p, "ethnicity")), 0) + 1
+        )
         counts["sex"][_sex_bucket(p)] = counts["sex"].get(_sex_bucket(p), 0) + 1
         counts["age"][_age_bucket(p)] = counts["age"].get(_age_bucket(p), 0) + 1
-    dimensions: Dict[str, List[Dict[str, Any]]] = {}
-    shortfalls: List[Dict[str, Any]] = []
+    dimensions: dict[str, list[dict[str, Any]]] = {}
+    shortfalls: list[dict[str, Any]] = []
     for dim, goals in tg.items():
         rows = []
         for group, goal in goals.items():
@@ -149,18 +167,35 @@ def plan_diversity(
             else:
                 status = "off-track"
             need = _need_to_enroll(a, n, goal)
-            rows.append({"group": group, "n": a, "actual_pct": actual_pct,
-                         "goal_pct": goal, "gap_pp": gap, "status": status,
-                         "need_to_enroll": need})
+            rows.append(
+                {
+                    "group": group,
+                    "n": a,
+                    "actual_pct": actual_pct,
+                    "goal_pct": goal,
+                    "gap_pp": gap,
+                    "status": status,
+                    "need_to_enroll": need,
+                }
+            )
             if gap > 0:
-                shortfalls.append({"dimension": dim, "group": group, "gap_pp": gap,
-                                   "need_to_enroll": need})
+                shortfalls.append(
+                    {
+                        "dimension": dim,
+                        "group": group,
+                        "gap_pp": gap,
+                        "need_to_enroll": need,
+                    }
+                )
         dimensions[dim] = sorted(rows, key=lambda r: r["gap_pp"], reverse=True)
     shortfalls.sort(key=lambda s: s["gap_pp"], reverse=True)
-    focus = [f"Enroll {s['need_to_enroll']}+ more {s['group']} ({s['dimension']}) "
-             f"to close a {s['gap_pp']}pp gap" if s["need_to_enroll"] >= 0
-             else f"{s['group']} ({s['dimension']}) goal unreachable at n={n} — reset target"
-             for s in shortfalls[:3]]
+    focus = [
+        f"Enroll {s['need_to_enroll']}+ more {s['group']} ({s['dimension']}) "
+        f"to close a {s['gap_pp']}pp gap"
+        if s["need_to_enroll"] >= 0
+        else f"{s['group']} ({s['dimension']}) goal unreachable at n={n} — reset target"
+        for s in shortfalls[:3]
+    ]
     states = [r["status"] for rows in dimensions.values() for r in rows]
     if any(s == "off-track" for s in states):
         overall = "needs-work"
@@ -168,6 +203,11 @@ def plan_diversity(
         overall = "watch"
     else:
         overall = "ready"
-    return {"n": n, "targets_used": tg, "dimensions": dimensions,
-            "focus_areas": focus, "overall_status": overall,
-            "note": "Default goals are illustrative; replace with protocol DAP targets."}
+    return {
+        "n": n,
+        "targets_used": tg,
+        "dimensions": dimensions,
+        "focus_areas": focus,
+        "overall_status": overall,
+        "note": "Default goals are illustrative; replace with protocol DAP targets.",
+    }
