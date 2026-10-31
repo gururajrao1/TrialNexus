@@ -295,9 +295,12 @@ class StaticUITest(unittest.TestCase):
                        "tab-monitoring", "tab-finder", "tab-external"):
             self.assertIn(marker, html)
         app_src = (ROOT / "backend" / "app.py").read_text()
-        self.assertIn("StaticFiles", app_src)
-        self.assertIn("/api/snapshot", app_src)
-        self.assertIn("/api/demo-data", app_src)
+        routes_src = "".join(p.read_text() for p in
+                             (ROOT / "backend" / "routes").glob("*.py"))
+        src = app_src + routes_src
+        self.assertIn("StaticFiles", src)
+        self.assertIn("/api/snapshot", src)
+        self.assertIn("/api/demo-data", src)
 
 
 if __name__ == "__main__":
