@@ -1,0 +1,31 @@
+[
+  {
+    "discrepancy_id": "DISC-901",
+    "patient_id": "PT-4420",
+    "reported_term": "Acute elevated ALT/AST post-dose",
+    "description": "ALT 185 U/L exceeds 3x ULN recorded on Day 14, no hyperbilirubinemia",
+    "severity": "MODERATE"
+  },
+  {
+    "discrepancy_id": "DISC-902",
+    "patient_id": "PT-4417",
+    "reported_term": "Febrile neutropenia with inpatient hospitalization",
+    "description": "Unexpected Grade 4 febrile neutropenia, hospitalized Day 9",
+    "severity": "SEVERE",
+    "unexpected": true
+  },
+  {
+    "discrepancy_id": "DISC-903",
+    "patient_id": "PT-4431",
+    "reported_term": "QTc prolongation on ECG",
+    "description": "QTc 495 msec on Day 1 post-dose ECG, asymptomatic",
+    "severity": "SEVERE"
+  },
+  {
+    "discrepancy_id": "DISC-904",
+    "patient_id": "PT-4402",
+    "reported_term": "Mild nausea post-infusion",
+    "description": "Grade 1 nausea resolving within 24 hours",
+    "severity": "MILD"
+  }
+]

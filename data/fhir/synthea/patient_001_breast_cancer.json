@@ -1,0 +1,90 @@
+{
+  "resourceType": "Bundle",
+  "id": "patient-001",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "patient-001",
+        "gender": "female",
+        "birthDate": "1967-03-22",
+        "extension": [
+          {"url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race",
+           "valueString": "White"},
+          {"url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity",
+           "valueString": "Not Hispanic or Latino"}
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "clinicalStatus": "active",
+        "code": {"text": "Metastatic non-small cell lung cancer"}
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "clinicalStatus": "active",
+        "code": {"text": "EGFR Exon 19 deletion positive"}
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "ECOG performance status"},
+        "valueInteger": 1,
+        "effectiveDateTime": "2025-05-18"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Absolute Neutrophil Count"},
+        "valueQuantity": {"value": 2100, "unit": "/uL"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Platelets"},
+        "valueQuantity": {"value": 220, "unit": "x10^9/L"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Hemoglobin"},
+        "valueQuantity": {"value": 11.2, "unit": "g/dL"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Creatinine"},
+        "valueQuantity": {"value": 1.0, "unit": "mg/dL"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "QTc interval"},
+        "valueQuantity": {"value": 440, "unit": "msec"},
+        "effectiveDateTime": "2025-05-21"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationStatement",
+        "medicationCodeableConcept": {"text": "Metformin 500mg daily"},
+        "status": "active"
+      }
+    }
+  ]
+}

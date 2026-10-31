@@ -1,0 +1,91 @@
+{
+  "resourceType": "Bundle",
+  "id": "patient-003",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "patient-003",
+        "gender": "female",
+        "birthDate": "1980-04-11",
+        "extension": [
+          {"url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race",
+           "valueString": "Black or African American"},
+          {"url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity",
+           "valueString": "Hispanic or Latino"}
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "clinicalStatus": "active",
+        "code": {"text": "Metastatic non-small cell lung cancer"}
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "clinicalStatus": "active",
+        "code": {"text": "EGFR Exon 19 deletion positive"}
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "clinicalStatus": "resolved",
+        "code": {"text": "No evidence of brain metastases on recent MRI"}
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Absolute Neutrophil Count"},
+        "valueQuantity": {"value": 1900, "unit": "/uL"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Platelets"},
+        "valueQuantity": {"value": 200, "unit": "x10^9/L"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Hemoglobin"},
+        "valueQuantity": {"value": 12.0, "unit": "g/dL"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Creatinine"},
+        "valueQuantity": {"value": 0.9, "unit": "mg/dL"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationStatement",
+        "medicationCodeableConcept": {"text": "Aspirin 81mg daily"},
+        "status": "active"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "DocumentReference",
+        "status": "current",
+        "type": {"text": "Assessment"},
+        "content": [
+          {"text": "NSCLC with EGFR Exon 19 deletion, under evaluation for trial. ECOG not recorded today. No chest pain."}
+        ]
+      }
+    }
+  ]
+}

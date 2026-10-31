@@ -1,0 +1,22 @@
+PROTOCOL TITLE: A Phase III Study of Compound TNX-101 in Advanced Non-Small Cell Lung Cancer (NSCLC)
+PHASE: Phase 3
+TARGET ENROLLMENT: 450
+INDICATION: Non-Small Cell Lung Cancer
+
+SCHEDULE OF ASSESSMENTS (excerpt):
+Day 1: PK blood draws x6, ECG, safety labs.
+Day 14 +/- 2 days: tumor assessment, PK trough.
+Day 16: safety follow-up visit.
+
+INCLUSION CRITERIA:
+1. Male or female patients aged >= 18 years and <= 75 years.
+2. Histologically or cytologically confirmed metastatic NSCLC with documented EGFR Exon 19 deletion or L858R mutation.
+3. ECOG Performance Status of 0 or 1.
+4. Adequate bone marrow reserve: Absolute Neutrophil Count (ANC) >= 1.5 x 10^9/L, Platelets >= 100 x 10^9/L, Hemoglobin >= 9.0 g/dL.
+5. Serum creatinine <= 1.5x Upper Limit of Normal (ULN) or calculated CrCl >= 50 mL/min.
+
+EXCLUSION CRITERIA:
+1. Prior treatment with third-generation EGFR tyrosine kinase inhibitors.
+2. Active brain metastases or spinal cord compression. Asymptomatic treated brain metastases are allowed if stable for >= 28 days without corticosteroids.
+3. Clinically significant cardiovascular disease: QTc interval > 470 msec, Class II-IV heart failure.
+4. Pregnant or breastfeeding women.

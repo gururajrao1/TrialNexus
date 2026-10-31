@@ -1,0 +1,59 @@
+{
+  "resourceType": "Bundle",
+  "id": "patient-004",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "patient-004",
+        "gender": "female",
+        "birthDate": "1980-09-05",
+        "extension": [
+          {"url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race",
+           "valueString": "Asian"},
+          {"url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity",
+           "valueString": "Not Hispanic or Latino"}
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "clinicalStatus": "active",
+        "code": {"text": "Early stage HER2 positive breast cancer"}
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "ECOG performance status"},
+        "valueInteger": 0,
+        "effectiveDateTime": "2025-05-18"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Hemoglobin"},
+        "valueQuantity": {"value": 12.5, "unit": "g/dL"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Beta HCG"},
+        "valueString": "Negative",
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationStatement",
+        "medicationCodeableConcept": {"text": "Letrozole 2.5mg daily"},
+        "status": "active"
+      }
+    }
+  ]
+}

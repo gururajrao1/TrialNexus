@@ -1,0 +1,17 @@
+PROTOCOL TITLE: A Phase II Study of Compound TNX-303 in Type 2 Diabetes Mellitus
+PHASE: Phase 2
+TARGET ENROLLMENT: 200
+INDICATION: Type 2 Diabetes Mellitus
+
+SCHEDULE OF ASSESSMENTS (excerpt):
+Day 1: safety labs, ECG.
+Day 28: HbA1c, safety labs.
+
+INCLUSION CRITERIA:
+1. Male or female patients aged >= 18 years.
+2. Diagnosed type 2 diabetes mellitus.
+3. HbA1c >= 7.0% at screening.
+
+EXCLUSION CRITERIA:
+1. Pregnant or breastfeeding women.
+2. Severe renal impairment: eGFR < 30 mL/min.

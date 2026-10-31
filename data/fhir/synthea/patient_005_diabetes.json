@@ -1,0 +1,51 @@
+{
+  "resourceType": "Bundle",
+  "id": "patient-005",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "patient-005",
+        "gender": "male",
+        "birthDate": "1967-11-30",
+        "extension": [
+          {"url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race",
+           "valueString": "White"},
+          {"url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity",
+           "valueString": "Hispanic or Latino"}
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "clinicalStatus": "active",
+        "code": {"text": "Type 2 diabetes mellitus"}
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Hemoglobin A1c"},
+        "valueQuantity": {"value": 8.2, "unit": "%"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "eGFR"},
+        "valueQuantity": {"value": 85, "unit": "mL/min"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationStatement",
+        "medicationCodeableConcept": {"text": "Metformin 1000mg twice daily"},
+        "status": "active"
+      }
+    }
+  ]
+}

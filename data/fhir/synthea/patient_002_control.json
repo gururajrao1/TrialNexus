@@ -1,0 +1,90 @@
+{
+  "resourceType": "Bundle",
+  "id": "patient-002",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "patient-002",
+        "gender": "male",
+        "birthDate": "1970-01-10",
+        "extension": [
+          {"url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race",
+           "valueString": "Asian"},
+          {"url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity",
+           "valueString": "Not Hispanic or Latino"}
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "clinicalStatus": "active",
+        "code": {"text": "Metastatic non-small cell lung cancer"}
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "clinicalStatus": "active",
+        "code": {"text": "EGFR L858R mutation positive"}
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "ECOG performance status"},
+        "valueInteger": 1,
+        "effectiveDateTime": "2025-05-18"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Absolute Neutrophil Count"},
+        "valueQuantity": {"value": 900, "unit": "/uL"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Platelets"},
+        "valueQuantity": {"value": 180, "unit": "x10^9/L"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Hemoglobin"},
+        "valueQuantity": {"value": 10.5, "unit": "g/dL"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "Creatinine"},
+        "valueQuantity": {"value": 1.1, "unit": "mg/dL"},
+        "effectiveDateTime": "2025-05-20"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "code": {"text": "QTc interval"},
+        "valueQuantity": {"value": 450, "unit": "msec"},
+        "effectiveDateTime": "2025-05-21"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationStatement",
+        "medicationCodeableConcept": {"text": "Osimertinib 80mg daily"},
+        "status": "active"
+      }
+    }
+  ]
+}

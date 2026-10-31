@@ -1,0 +1,18 @@
+PROTOCOL TITLE: A Phase II Study of Compound TNX-202 in HER2 Positive Breast Cancer
+PHASE: Phase 2
+TARGET ENROLLMENT: 120
+INDICATION: Breast Cancer
+
+SCHEDULE OF ASSESSMENTS (excerpt):
+Day 1: infusion, ECG, safety labs.
+Day 21: tumor assessment.
+
+INCLUSION CRITERIA:
+1. Female patients aged >= 18 years.
+2. Histologically confirmed HER2 positive breast cancer.
+3. ECOG Performance Status of 0 or 1.
+4. Hemoglobin >= 9.0 g/dL.
+
+EXCLUSION CRITERIA:
+1. Prior treatment with trastuzumab emtansine.
+2. Pregnant or breastfeeding women.
