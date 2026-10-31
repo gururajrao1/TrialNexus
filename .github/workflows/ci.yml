@@ -1,0 +1,48 @@
+name: trialnexus-ci
+
+on:
+  push:
+    branches: [main, mvp]
+  pull_request:
+    branches: [main, mvp]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install app dependencies
+        run: pip install -r requirements.txt
+      - name: Install lint tooling
+        run: pip install -r requirements-dev.txt
+      - name: Ruff lint
+        run: ruff check backend tests seed_data.py
+      - name: Ruff format check
+        run: ruff format --check backend tests seed_data.py
+      - name: Seed database
+        run: python seed_data.py
+      - name: Unit tests
+        run: python -m unittest discover -s tests
+      - name: Live end-to-end checks
+        run: |
+          python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000 &
+          SERVER_PID=$!
+          python tests/test_e2e_live.py
+          STATUS=$?
+          kill $SERVER_PID
+          exit $STATUS
+      - name: Core parity between main and mvp
+        run: |
+          git diff --quiet origin/main origin/mvp -- \
+            backend/agents/protocol_auditor.py \
+            backend/agents/site_scout.py \
+            backend/agents/cohort_matcher.py \
+            backend/agents/safety_triage.py \
+            backend/agents/synonyms.py \
+            backend/database.py \
+            seed_data.py
