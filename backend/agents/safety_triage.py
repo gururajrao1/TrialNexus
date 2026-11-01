@@ -101,6 +101,86 @@ def _is_sae(text: str, grade: str) -> bool:
         return False
 
 
+ACUTE_CUES = (
+    "post-dose",
+    "post dose",
+    "post-infusion",
+    "post infusion",
+    "within hours",
+    "day 1",
+    "day1",
+    "acute",
+    "sudden",
+    "immediate",
+)
+SUBACUTE_CUES = ("day 7", "day 14", "week ", "weeks", "subacute", "gradual onset")
+DELAYED_CUES = (
+    "month",
+    "delayed",
+    "late onset",
+    "chronic",
+    "cycle 3",
+    "cycle 4",
+    "cycle 5",
+    "cycle 6",
+)
+ALT_CAUSE_CUES = (
+    "metasta",
+    "progression",
+    "disease-related",
+    "comorbid",
+    "baseline",
+    "pre-existing",
+    "concomitant illness",
+)
+RELATED_CUES = ("related", "attributed", "suspected", "likely drug")
+DECHALLENGE_CUES = (
+    "resolved after",
+    "improved after stopping",
+    "dechallenge",
+    "recurred on rechallenge",
+    "rechallenge",
+)
+
+
+def _enrich(
+    text: str, record: dict[str, Any], sae: bool, unexpected: bool
+) -> dict[str, Any]:
+    """Temporality + attribution + certainty from report cues (additive)."""
+    low = text.lower()
+    if any(c in low for c in ACUTE_CUES):
+        timing, t_why = "acute", "onset cue in report (post-dose/acute)"
+    elif any(c in low for c in SUBACUTE_CUES):
+        timing, t_why = "subacute", "onset cue in report (days–weeks)"
+    elif any(c in low for c in DELAYED_CUES):
+        timing, t_why = "delayed", "onset cue in report (months/cycles)"
+    else:
+        timing, t_why = "unknown", "no onset cue in report"
+    stated = str(record.get("relatedness", "")).lower()
+    if stated in ("related", "possibly", "unlikely", "unknown", "unrelated"):
+        rel = "unlikely" if stated == "unrelated" else stated
+        r_why = "reporter-stated relatedness"
+    elif any(c in low for c in ALT_CAUSE_CUES):
+        rel, r_why = "unlikely", "alternative etiology mentioned"
+    elif any(c in low for c in DECHALLENGE_CUES):
+        rel, r_why = "related", "dechallenge/rechallenge cue"
+    elif any(c in low for c in RELATED_CUES):
+        rel, r_why = "possibly", "relatedness cue in report"
+    else:
+        rel, r_why = "unknown", "no relatedness cue"
+    if stated or any(c in low for c in DECHALLENGE_CUES):
+        cert, c_why = "high", "explicit statement or dechallenge"
+    elif timing != "unknown" or (sae and unexpected):
+        cert, c_why = "moderate", "onset or SAE context present"
+    else:
+        cert, c_why = "low", "no timing or context cues"
+    return {
+        "temporality": {"onset": timing, "basis": t_why},
+        "attribution": {"relatedness": rel, "basis": r_why},
+        "certainty": {"level": cert, "basis": c_why},
+    }
+
+
 def triage_one(record: dict[str, Any]) -> dict[str, Any]:
     """Triage a single discrepancy / adverse event record."""
     term = str(record.get("reported_term", record.get("term", "Unspecified event")))
@@ -133,6 +213,7 @@ def triage_one(record: dict[str, Any]) -> dict[str, Any]:
         "is_sae": sae,
         "regulatory_alert_required": alert,
         "reporting_deadline_hours": deadline,
+        "enrichment": _enrich(text, record, sae, unexpected),
         "site_query": {
             "query_target": "Investigator",
             "query_text": query_text,
