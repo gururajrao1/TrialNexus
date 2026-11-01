@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.config import DB_PATH as DEFAULT_DB
-from backend.config import SCHEMA_VERSION
+from backend.config import HISTORY_CAP, SCHEMA_VERSION
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS protocols (
@@ -262,6 +262,7 @@ def insert_patient_evaluation(row: dict[str, Any], db_path: Path | None = None) 
                 "rationale": json.dumps(row.get("rationale", {})),
             },
         )
+        _enforce_history_cap(conn, "patient_evaluations")
         conn.commit()
     finally:
         conn.close()
@@ -310,9 +311,18 @@ def insert_safety_query(row: dict[str, Any], db_path: Path | None = None) -> Non
                 "resolution_status": row.get("resolution_status", "TRIAGED"),
             },
         )
+        _enforce_history_cap(conn, "safety_queries")
         conn.commit()
     finally:
         conn.close()
+
+
+def _enforce_history_cap(conn: sqlite3.Connection, table: str) -> None:
+    conn.execute(
+        f"DELETE FROM {table} WHERE rowid NOT IN "
+        f"(SELECT rowid FROM {table} ORDER BY rowid DESC LIMIT ?)",
+        (HISTORY_CAP,),
+    )
 
 
 def list_safety_queries(

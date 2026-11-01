@@ -85,7 +85,7 @@
     <h3>Relaxation sweep</h3>
     <form id="sweepForm" class="controls">
       <label>Seed bundle <select id="sweepSeed"></select></label>
-      <label>Twins <input id="sweepN" type="number" value="200" min="10" max="500"></label>
+      <label>Twins <input id="sweepN" type="number" value="50" min="10" max="500"></label>
       <button type="submit">Run sweep</button>
     </form>
     <p class="muted">Eligible-n elasticity per threshold, over an in-memory twin cohort.</p>
@@ -175,7 +175,7 @@
   <section id="tab-twins" aria-labelledby="tabbtn-twins" hidden>
     <form id="twinsForm" class="controls">
       <label>Patient bundle <select id="twinsBundle"></select></label>
-      <label>Twins <input id="twinsN" type="number" value="500" min="10" max="500"></label>
+      <label>Twins <input id="twinsN" type="number" value="100" min="10" max="500"></label>
       <button type="submit">Generate twins</button>
     </form>
     <p class="muted">In-memory synthetic cohort from the seed patient against PROT-TNX-001 — nothing is stored.</p>

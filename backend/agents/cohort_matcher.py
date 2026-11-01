@@ -637,15 +637,11 @@ def _eval_exclusion(
     return done(False, "No exclusion evidence in record")
 
 
-def evaluate_patient(
-    criteria: dict[str, Any],
-    bundle: dict[str, Any],
-    ref_date: date = REF_DATE,
-) -> dict[str, Any]:
-    """Evaluate one FHIR bundle against structured I/E criteria."""
+def match_context(bundle: dict[str, Any], ref_date: date = REF_DATE) -> dict[str, Any]:
+    """Pre-parsed per-patient context, shared by full and single-rule evals."""
     obs = observations(bundle)
     conds = conditions(bundle)
-    ctx = {
+    return {
         "obs": obs,
         "conds": conds,
         "meds": medications(bundle),
@@ -655,6 +651,25 @@ def evaluate_patient(
         "notes": clinical_notes(bundle),
         "ref_date": ref_date,
     }
+
+
+def eval_inclusion_rule(
+    criterion: dict[str, Any],
+    bundle: dict[str, Any],
+    ctx: dict[str, Any] | None = None,
+    ref_date: date = REF_DATE,
+) -> dict[str, Any]:
+    """Evaluate one inclusion criterion (sweep fast path)."""
+    return _eval_inclusion(criterion, bundle, ctx or match_context(bundle, ref_date))
+
+
+def evaluate_patient(
+    criteria: dict[str, Any],
+    bundle: dict[str, Any],
+    ref_date: date = REF_DATE,
+) -> dict[str, Any]:
+    """Evaluate one FHIR bundle against structured I/E criteria."""
+    ctx = match_context(bundle, ref_date)
     inc_evals = [
         _eval_inclusion(c, bundle, ctx) for c in criteria.get("inclusion_criteria", [])
     ]

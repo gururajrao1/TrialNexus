@@ -1,8 +1,11 @@
 """Criterion-relaxation sweep: eligible-n elasticity per threshold.
 
-For each numeric inclusion (sub-)rule, re-runs the matcher over a cohort
-at progressively relaxed thresholds and reports how many patients flip
-to ELIGIBLE. Also reports marginal flips: patients failing ONLY that
+For each numeric inclusion (sub-)rule, re-evaluates ONLY that rule over
+a cohort at progressively relaxed thresholds and reports how many
+patients flip to ELIGIBLE. Incremental by construction: one full
+baseline pass, then single-rule re-evals against cached per-patient
+contexts — identical eligible sets to full re-evaluation at ~1/8 the
+cost. Also reports marginal flips: patients failing ONLY that
 criterion at baseline. Flat ladders are honest output: the threshold
 simply isn't binding for that cohort. Deterministic, stdlib only.
 """
@@ -12,7 +15,12 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from backend.agents.cohort_matcher import evaluate_cohort, patient_id
+from backend.agents.cohort_matcher import (
+    eval_inclusion_rule,
+    evaluate_cohort,
+    match_context,
+    patient_id,
+)
 from backend.agents.twin_generator import make_twins
 
 LEVELS_DOWN = (0.9, 0.75, 0.6)
@@ -39,18 +47,17 @@ def ladder_for(operator: str, value: Any) -> list[Any]:
     return []
 
 
-def _relaxed(criteria: dict[str, Any], cid: str, sub_idx: int | None, new_value: Any):
-    crit = copy.deepcopy(criteria)
-    for c in crit.get("inclusion_criteria", []):
-        if c.get("id") != cid:
-            continue
-        subs = c.get("sub_rules") or []
-        if sub_idx is not None and len(subs) > 1:
-            subs[sub_idx]["value"] = new_value
-        elif c.get("operator") == "IN":
-            c["value"] = sorted(set(list(c.get("value", [])) + [new_value]))
-        else:
-            c["value"] = new_value
+def _relaxed_rule(
+    criterion: dict[str, Any], sub_idx: int | None, new_value: Any
+) -> dict[str, Any]:
+    crit = copy.deepcopy(criterion)
+    subs = crit.get("sub_rules") or []
+    if sub_idx is not None and len(subs) > 1:
+        subs[sub_idx]["value"] = new_value
+    elif crit.get("operator") == "IN":
+        crit["value"] = sorted(set(list(crit.get("value", [])) + [new_value]))
+    else:
+        crit["value"] = new_value
     return crit
 
 
@@ -74,6 +81,39 @@ def sweep(
     base_results = evaluate_cohort(criteria, pool)["matching_results"]
     base_ids = _eligible_set(base_results)
     by_id = {r["patient_id"]: r for r in base_results}
+    # Per-patient cached contexts + baseline criterion outcomes, so each
+    # ladder level re-evaluates only the relaxed rule (same code path as
+    # full evaluation, identical eligible sets).
+    ctx_by_id = {patient_id(b): match_context(b) for b in pool}
+    bundle_by_id = {patient_id(b): b for b in pool}
+    ok_rest: dict[str, dict[str, bool]] = {}
+    for pid, r in by_id.items():
+        inc_ok = {
+            e["criterion_id"]: bool(e["passed"]) and not e["missing_data"]
+            for e in r.get("inclusion_evaluations", [])
+        }
+        exc_ok = not any(
+            e["triggered"] or e["missing_data"]
+            for e in r.get("exclusion_evaluations", [])
+        )
+        ok_rest[pid] = {"exc_ok": exc_ok, **{f"inc:{k}": v for k, v in inc_ok.items()}}
+
+    def _level_ids(cid: str, rule: dict[str, Any]) -> set[str]:
+        ids = set()
+        for pid in by_id:
+            rest = ok_rest[pid]
+            if not rest["exc_ok"]:
+                continue
+            if any(
+                not v
+                for k, v in rest.items()
+                if k.startswith("inc:") and k != f"inc:{cid}"
+            ):
+                continue
+            e = eval_inclusion_rule(rule, bundle_by_id[pid], ctx_by_id[pid])
+            if e["passed"] and not e["missing_data"]:
+                ids.add(pid)
+        return ids
 
     out_criteria = []
     for c in criteria.get("inclusion_criteria", []):
@@ -99,8 +139,8 @@ def sweep(
         for sub_idx, variable, op, val, unit in targets:
             levels = []
             for new_value in ladder_for(op, val):
-                relaxed = _relaxed(criteria, cid, sub_idx, new_value)
-                ids = _eligible_set(evaluate_cohort(relaxed, pool)["matching_results"])
+                rule = _relaxed_rule(c, sub_idx, new_value)
+                ids = _level_ids(cid, rule)
                 new = sorted(ids - base_ids)
                 levels.append(
                     {

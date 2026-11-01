@@ -24,6 +24,9 @@ CTGV_CACHE = OUTPUTS_DIR / "ctgov_cache.json"
 CTGV_CACHE_MAX_ENTRIES = 200
 PUBMED_CACHE = OUTPUTS_DIR / "pubmed_cache.json"
 PUBMED_CACHE_MAX_ENTRIES = 200
+#: Run-history retention: keeps the SQLite store bounded on long-lived
+#: demo DBs while leaving ample rows for forensics and monitoring.
+HISTORY_CAP = 2000
 N2C2_DATA_DIR = DATA_DIR / "n2c2"
 N2C2_FIXTURE = ROOT / "tests" / "fixtures" / "n2c2_mini.json"
 

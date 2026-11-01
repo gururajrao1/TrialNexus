@@ -36,7 +36,14 @@ export async function runAudit() {
             "<br>Remediation: " + esc(x.suggested_remediation) + "</li>").join("") + "</ul>"
         : "<p>None detected.</p>");
     const pid2 = $("auditPid").value.trim();
-    const st = await getJSON("/api/protocol-structure/" + encodeURIComponent(pid2));
+    const enc = encodeURIComponent(pid2);
+    const [st, bd, o, dctHtml, critHtml] = await Promise.all([
+      getJSON("/api/protocol-structure/" + enc),
+      getJSON("/api/burden/" + enc),
+      getJSON("/api/trial-outlook/" + enc),
+      runDct(pid2),
+      runCriteria(pid2),
+    ]);
     lastStructure = st;
     el.innerHTML += "<h3>Structured export (M11-inspired)</h3>" +
       "<p>" + esc(st.study.title) + " — " + esc(st.eligibility.inclusion.length) + " INC / " +
@@ -45,7 +52,6 @@ export async function runAudit() {
       "<p><button type='button' id='dlStructure'>Download JSON</button> " +
       "<button type='button' id='copyStructure'>Copy JSON</button></p>" +
       "<details class='evidence'><summary>Full structure</summary>" + preJSON(st) + "</details>";
-    const bd = await getJSON("/api/burden/" + encodeURIComponent(pid2));
     el.innerHTML += "<h3>Visit burden &amp; DCT fit</h3>" +
       "<p>Total burden <strong>" + esc(bd.total_score) + "</strong> — " + esc(bd.verdict) +
       " — " + esc(bd.convertible_pct) + "% of visits remote-convertible</p>" +
@@ -54,7 +60,6 @@ export async function runAudit() {
         remote: v.convertible ? "YES — " + v.reason : "NO — " + v.reason })),
         [["day", "Visit"], ["procedures", "Procedures"], ["score", "Burden"], ["remote", "Remote fit"]]) +
       "<p class='muted'>" + esc(bd.basis) + "</p>";
-    const o = await getJSON("/api/trial-outlook/" + encodeURIComponent(pid2));
     el.innerHTML += "<h3>Trial outlook</h3>" +
       "<p>Success probability: <strong>" + esc(Math.round(o.success_probability * 100)) + "%</strong></p>" +
       table([{ k: "Enrollment failure", v: o.failure_breakdown.enrollment_failure },
@@ -63,8 +68,8 @@ export async function runAudit() {
         [["k", "Failure mode"], ["v", "Share"]]) +
       "<ul class='tight'>" + o.drivers.map((d) => "<li>" + esc(d) + "</li>").join("") + "</ul>" +
       "<p class='muted'>" + esc(o.basis) + "</p>";
-    el.innerHTML += await runDct(pid2);
-    el.innerHTML += await runCriteria(pid2);
+    el.innerHTML += dctHtml;
+    el.innerHTML += critHtml;
     $("dlStructure").addEventListener("click", () => {
       const blob = new Blob([JSON.stringify(lastStructure, null, 1)], { type: "application/json" });
       const a = document.createElement("a");
@@ -193,8 +198,10 @@ export async function runRetention() {
       sel.innerHTML = demoBundles.map((b, i) => '<option value="' + i + '">' + esc(b.name) + "</option>").join("");
     }
     const bundle = demoBundles[parseInt(sel.value || "0", 10)].bundle;
-    const r = await postJSON("/api/retention", { protocol_id: "PROT-TNX-001", bundle });
-    const at = await getJSON("/api/attrition/PROT-TNX-001");
+    const [r, at] = await Promise.all([
+      postJSON("/api/retention", { protocol_id: "PROT-TNX-001", bundle }),
+      getJSON("/api/attrition/PROT-TNX-001"),
+    ]);
     const badge = r.band === "low" ? "b-elig" : (r.band === "moderate" ? "b-review" : "b-inelig");
     el.innerHTML = "<h3>Dropout risk <span class='score'>" + esc(r.score) + "</span> " +
       '<span class="badge ' + badge + '">' + esc(r.band) + "</span></h3>" +
