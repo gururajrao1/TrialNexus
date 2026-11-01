@@ -1,2 +1,3 @@
 # Dev-only tooling (CI + local). Never needed to run the app.
 ruff>=0.9.0
+playwright>=1.40.0  # browser pixel test only; needs a Chromium (CI downloads, local reuses Edge/Chrome via PLAYWRIGHT_CHANNEL)

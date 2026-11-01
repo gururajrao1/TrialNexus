@@ -531,7 +531,17 @@ python tests/test_e2e_live.py          :: prints PASS/FAIL per check + FAILURES:
 Every push to `main` or `mvp` runs all three layers plus a **core-parity
 check** on GitHub Actions (see `.github/workflows/ci.yml`): the 4 cookbook
 agents + synonyms + database + seed script must stay byte-identical across
-both branches. Watch the Actions tab — green in ~2 minutes.
+both branches. `main` additionally runs a **browser pixel check**
+(`tests/test_ui_pixel.py` in real Chromium, screenshot artifact).
+Watch the Actions tab — green in ~4 minutes.
+
+Local pixel run (no download when reusing a system browser):
+
+```bat
+pip install -r requirements-dev.txt
+set PLAYWRIGHT_CHANNEL=msedge   &:: or chrome
+python -m unittest tests.test_ui_pixel -v
+```
 
 Manual testing per feature is covered above (each feature's **Try it**);
 `TEST_GUIDE.md` keeps the same walkthrough as 13 numbered scenarios.

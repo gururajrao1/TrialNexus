@@ -27,10 +27,13 @@ class PixelTests(unittest.TestCase):
     def test_app_renders_in_chromium(self):
         errors = []
         with sync_playwright() as p:
-            browser = p.chromium.launch()
+            channel = os.environ.get("PLAYWRIGHT_CHANNEL") or None
+            browser = p.chromium.launch(channel=channel)
             page = browser.new_page(viewport={"width": 1440, "height": 900})
-            page.on("pageerror", errors.append)
-            page.goto(BASE + "/", wait_until="networkidle")
+            page.on("pageerror", lambda err: errors.append(err))
+            # domcontentloaded: boot fires heavy panels (sweep/twins), so
+            # networkidle never settles; targeted waits below assert renders.
+            page.goto(BASE + "/", wait_until="domcontentloaded")
             page.wait_for_selector("#snapshot .metric", timeout=30000)
             tabs = page.query_selector_all("[id^='tabbtn-']")
             self.assertEqual(len(tabs), 13)
@@ -38,9 +41,11 @@ class PixelTests(unittest.TestCase):
             for label in ("Protocols", "Sites", "FHIR patients"):
                 self.assertIn(label, metrics)
             self.assertIn("API online", page.inner_text("#apiStatus"))
-            # Cohort tab renders a verdict table, not a blank panel.
+            # Cohort tab renders verdicts, not a blank panel (detail
+            # tables are collapsed by design: attached, not visible).
             page.click("#tabbtn-cohort")
-            page.wait_for_selector("#cohortResult table", timeout=30000)
+            page.wait_for_selector("#cohortResult table", timeout=30000, state="attached")
+            page.wait_for_selector("#cohortResult .badge", timeout=30000)
             shot_dir = os.environ.get("RUNNER_TEMP") or tempfile.gettempdir()
             shot = os.path.join(shot_dir, "pixel_proof.png")
             page.screenshot(path=shot)
