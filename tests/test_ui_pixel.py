@@ -12,7 +12,9 @@ blank-page failure, and saves a screenshot artifact.
 import os
 import sys
 import tempfile
+import time
 import unittest
+import urllib.request
 
 BASE = os.environ.get("TRIALNEXUS_BASE_URL", "http://127.0.0.1:8000")
 
@@ -27,6 +29,14 @@ GATED = sync_playwright is None or os.environ.get("TRIALNEXUS_BROWSER_TEST") != 
 @unittest.skipIf(GATED, "browser-gated (CI pixel job sets TRIALNEXUS_BROWSER_TEST=1)")
 class PixelTests(unittest.TestCase):
     def test_app_renders_in_chromium(self):
+        for _ in range(60):
+            try:
+                if urllib.request.urlopen(BASE + "/health", timeout=5).status == 200:
+                    break
+            except Exception:
+                time.sleep(1)
+        else:
+            self.fail("API not reachable at " + BASE)
         errors = []
         with sync_playwright() as p:
             channel = os.environ.get("PLAYWRIGHT_CHANNEL") or None

@@ -49,6 +49,10 @@ jobs:
           sudo python -m playwright install-deps chromium
           python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000 &
           SERVER_PID=$!
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/health && break
+            sleep 2
+          done
           TRIALNEXUS_BROWSER_TEST=1 python -m unittest tests.test_ui_pixel -v
           STATUS=$?
           kill $SERVER_PID
