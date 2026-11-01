@@ -83,7 +83,8 @@
       "resource": {
         "resourceType": "MedicationStatement",
         "medicationCodeableConcept": {"text": "Osimertinib 80mg daily"},
-        "status": "active"
+        "status": "active",
+        "effectiveDateTime": "2025-05-10"
       }
     }
   ]

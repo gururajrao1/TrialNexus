@@ -53,6 +53,11 @@ built directly in this folder (no background agents after the direct-build switc
 | Ruff gate | Done | `pyproject.toml` + `requirements-dev.txt`; tree normalized |
 | CI | Done | `.github/workflows/ci.yml`: lint, seed, unit, e2e, core parity |
 | Frontend modules | Done | `frontend/js/` ES modules; no build step |
+| Multi-rule lines (V2) | Done | Auditor emits sub-rules + AND/OR logic; matcher evaluates all |
+| Washout windows (V2) | Done | `within N days` parsed; TKI date math vs Day 1 |
+| Creatinine units (V2) | Done | mg/dL ↔ µmol/L/mmol/L conversion in numeric checks |
+| Note ECOG (V2) | Done | ECOG/KPS fallback from clinical notes |
+| UI smoke test (V2) | Done | `tests/test_ui_smoke.mjs` + CI node step |
 | UI polish | Done | Portfolio stats, site-query fields, Yes/No cells — no stray JSON |
 | Value map | Done | `PRODUCT_VALUE_MAP.md`: per-feature deliverables × product value |
 | Smoke tests | Done, green | `tests/test_smoke.py`, stdlib unittest, 5/5 passing |
@@ -71,6 +76,8 @@ built directly in this folder (no background agents after the direct-build switc
   forecast, twins, mCODE, n2c2-status, and complexity checks
 - SE track: ruff clean; 26/26 unit + 30/30 e2e on main; 7/7 + 12/12 on mvp;
   main/mvp core parity exit 0
+- V2: ruff clean; 39/39 unit + 30/30 e2e + UI smoke on main;
+  20/20 unit + 12/12 e2e on mvp; parity exit 0
 
 ## Bugs found and fixed during verification
 

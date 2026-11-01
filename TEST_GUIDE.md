@@ -4,7 +4,7 @@
 
 ```bat
 python seed_data.py
-python -m unittest discover -s tests        :: fast offline suite (26 tests)
+python -m unittest discover -s tests        :: fast offline suite (39 tests)
 uvicorn backend.app:app --port 8000         :: leave running
 python tests/test_e2e_live.py               :: live problem-statement checks
 ```
@@ -200,8 +200,10 @@ and matchers ship without independent benchmarks.
 
 ## Known limits (next upgrades)
 
-- One rule per criterion line (multi-rule lines evaluate the first hit).
-- No temporal washout math yet (28-day windows use text evidence only).
+- Washout windows cover dated TKI/medication statements; undated
+  matches trigger conservatively.
+- Exotic multi-rule phrasings may split imperfectly — the audit JSON
+  shows the parsed sub-rules for review.
 - Diversity defaults are illustrative; plug in protocol-specific DAP targets.
 - Twins probe measurement sensitivity only — never efficacy or safety.
 - Outlook is a transparent heuristic until fitted on HINT public data.

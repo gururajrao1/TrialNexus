@@ -16,6 +16,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
       - name: Install app dependencies
         run: pip install -r requirements.txt
       - name: Install lint tooling
@@ -36,6 +39,9 @@ jobs:
           STATUS=$?
           kill $SERVER_PID
           exit $STATUS
+      - name: Frontend smoke (skips on branches without JS modules)
+        run: |
+          if [ -f frontend/js/boot.js ]; then node tests/test_ui_smoke.mjs; else echo "no JS modules on this branch"; fi
       - name: Core parity between main and mvp
         run: |
           git diff --quiet origin/main origin/mvp -- \

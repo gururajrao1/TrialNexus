@@ -78,8 +78,9 @@ OneDrive tip: right-click `.venv` → "Free up space" to keep it on-demand.
 | Safety Triage | MedDRA SOC keyword map + SAE rules + 7-day / 15-day clocks + drafted site queries |
 | EngineRouter | `ZeroCostRouter`: local Ollama if you run one, else deterministic stub (agents never need it) |
 
-One rule per criterion line parses best; multi-rule lines (e.g. ANC +
-platelets in one bullet) evaluate the first detected rule.
+Multi-threshold lines evaluate every sub-rule: comma/and-joined panels
+(ANC + platelets + hemoglobin) must all pass; `or`-joined alternatives
+(creatinine or CrCl) need any one to pass.
 
 ## Architecture
 
@@ -174,7 +175,7 @@ readability/complexity metrics (Flesch ease/grade, entity density).
 
 - **Try it:** Protocol audit tab → Run audit on `PROT-TNX-001`. Expect:
   5 INC / 4 EXC rules, fragility **20.5 (Low)**, 1 flaw (Day 14 vs Day 16
-  window clash), exposure **≈ $110,000**, grade ≈ 10.6.
+  window clash), exposure **≈ $110,000**, grade ≈ 10.1.
 - **API:** `POST /api/audit-protocol/PROT-TNX-001` → full audit JSON
   (also persists structured criteria for matching).
 - **Proof:** `ProtocolParseTest`, e2e `audit extracts 5 INC / 4 EXC`,
@@ -205,8 +206,11 @@ Evaluates FHIR bundles against audited criteria: exact numeric labs (with
 unit handling), age/histology/stage, meds, and **clinical notes**
 (`DocumentReference`) through a synonym table ("MI" =
 "myocardial infarction") with negation awareness ("No evidence of…"
-never counts as evidence). Verdicts: ELIGIBLE (all INC pass, 0 EXC hit),
-INELIGIBLE (hard fail), REVIEW_REQUIRED (data missing → action items).
+never counts as evidence). Prior-therapy windows use real date math
+against medication dates; creatinine converts mg/dL↔µmol/L; ECOG/KPS can
+come from notes when no observation exists. Verdicts: ELIGIBLE (all INC
+pass, 0 EXC hit), INELIGIBLE (hard fail), REVIEW_REQUIRED (data missing
+→ action items).
 
 - **Try it:** Cohort matching tab → Match cohort. Expect: patient-001
   ELIGIBLE 100%; patient-002 INELIGIBLE (low ANC + prior TKI trigger);
@@ -407,10 +411,10 @@ drop it under `data/n2c2/` (`{id}.txt` + `labels.csv`) and run
 ## Testing guide
 
 Three layers, cheapest first. Counts are for `main`
-(`mvp` runs the 4-agent subset: 7 unit + 12 e2e).
+(`mvp` runs the 4-agent subset: 20 unit + 12 e2e).
 
 ```bat
-:: Layer 1 — fast offline unit tests (no server): 26 tests
+:: Layer 1 — fast offline unit tests (no server): 39 tests
 python -m unittest discover -s tests
 
 :: Layer 2 — lint + format gate (dev only):
@@ -434,8 +438,8 @@ Manual testing per feature is covered above (each feature's **Try it**);
 
 | Branch | Contents | Tests |
 |---|---|---|
-| `main` | Full product: everything in this README | 26 unit + 30 e2e |
-| `mvp` | Cookbook core: 4 agents, 8 endpoints, 4-tab UI | 7 unit + 12 e2e |
+| `main` | Full product: everything in this README | 39 unit + 30 e2e |
+| `mvp` | Cookbook core: 4 agents, 8 endpoints, 4-tab UI | 20 unit + 12 e2e |
 
 Rules: `main` evolves freely; `mvp` stays lean — never merge `main`
 into it. Shared core fixes travel by checkout from `main`
@@ -473,8 +477,10 @@ old databases automatically).
 
 ## Known limits (honest list)
 
-- One rule per criterion line; multi-rule lines evaluate the first hit.
-- No temporal washout math yet (28-day windows use text evidence only).
+- Washout windows cover dated TKI/medication statements; undated
+  matches trigger conservatively; non-drug windows still use text evidence.
+- Exotic multi-rule phrasings may split imperfectly — the audit JSON
+  shows the parsed sub-rules for review.
 - Diversity defaults are illustrative; plug in protocol-specific DAP targets.
 - Twins probe measurement sensitivity only — never efficacy or safety.
 - Outlook is a transparent heuristic until fitted on HINT public data.

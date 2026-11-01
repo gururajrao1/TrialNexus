@@ -16,7 +16,7 @@ INCLUSION CRITERIA:
 5. Serum creatinine <= 1.5x Upper Limit of Normal (ULN) or calculated CrCl >= 50 mL/min.
 
 EXCLUSION CRITERIA:
-1. Prior treatment with third-generation EGFR tyrosine kinase inhibitors.
+1. Prior third-generation EGFR TKI therapy within 180 days of Day 1.
 2. Active brain metastases or spinal cord compression. Asymptomatic treated brain metastases are allowed if stable for >= 28 days without corticosteroids.
 3. Clinically significant cardiovascular disease: QTc interval > 470 msec, Class II-IV heart failure.
 4. Pregnant or breastfeeding women.
