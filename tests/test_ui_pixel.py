@@ -21,10 +21,7 @@ try:
 except ImportError:
     sync_playwright = None
 
-GATED = (
-    sync_playwright is None
-    or os.environ.get("TRIALNEXUS_BROWSER_TEST") != "1"
-)
+GATED = sync_playwright is None or os.environ.get("TRIALNEXUS_BROWSER_TEST") != "1"
 
 
 @unittest.skipIf(GATED, "browser-gated (CI pixel job sets TRIALNEXUS_BROWSER_TEST=1)")
