@@ -14,12 +14,15 @@ from pydantic import BaseModel
 
 from backend.agents.attrition import predict_attrition
 from backend.agents.burden_scorer import score_burden
+from backend.agents.consent_helper import check_consent
 from backend.agents.criteria_feedback import design_feedback
+from backend.agents.csm import csm_screen
 from backend.agents.dct_readiness import dct_readiness
 from backend.agents.diversity_planner import DEFAULT_TARGETS, plan_diversity
 from backend.agents.external_control import build_external_control
 from backend.agents.failure_forensics import forensic_report
 from backend.agents.kri_monitor import portfolio_kris
+from backend.agents.lock_readiness import lock_readiness
 from backend.agents.protocol_auditor import parse_protocol
 from backend.agents.pubmed import fetch_pubmed
 from backend.agents.retention import retention_risk
@@ -40,6 +43,7 @@ from backend.database import (
     list_sites,
     list_startup,
     save_protocol_audit,
+    update_safety_resolution,
     upsert_startup_site,
 )
 from backend.routes.core import audited_criteria
@@ -75,6 +79,29 @@ def history_cohort(protocol_id: str | None = None) -> dict[str, Any]:
 def history_safety(protocol_id: str | None = None) -> dict[str, Any]:
     init_db()
     return {"queries": list_safety_queries(protocol_id)}
+
+
+@router.get("/api/lock-readiness/{protocol_id}")
+def lock_readiness_endpoint(protocol_id: str) -> dict[str, Any]:
+    init_db()
+    return lock_readiness(list_safety_queries(protocol_id))
+
+
+class ResolveRequest(BaseModel):
+    resolution_status: str = "RESOLVED"
+
+
+@router.put("/api/safety-queries/{query_id}/resolve")
+def resolve_query(query_id: str, body: ResolveRequest) -> dict[str, Any]:
+    init_db()
+    status = body.resolution_status.strip().upper() or "RESOLVED"
+    if status not in ("RESOLVED", "TRIAGED", "OPEN"):
+        raise HTTPException(status_code=400, detail="unknown resolution_status")
+    return {
+        "id": query_id,
+        "resolution_status": status,
+        "updated": update_safety_resolution(query_id, status),
+    }
 
 
 @router.get("/api/export/cohort.csv")
@@ -213,6 +240,26 @@ def criteria_feedback_endpoint(protocol_id: str) -> dict[str, Any]:
     return design_feedback(json.loads(proto["audit_results"]))
 
 
+@router.get("/api/consent-check/{protocol_id}")
+def consent_check_protocol(protocol_id: str) -> dict[str, Any]:
+    init_db()
+    proto = get_protocol(protocol_id)
+    if not proto:
+        raise HTTPException(status_code=404, detail="Protocol not found")
+    return check_consent(proto["raw_content"])
+
+
+class ConsentCheckRequest(BaseModel):
+    text: str
+
+
+@router.post("/api/consent-check")
+def consent_check_text(body: ConsentCheckRequest) -> dict[str, Any]:
+    if not body.text.strip():
+        raise HTTPException(status_code=400, detail="text is required")
+    return check_consent(body.text)
+
+
 @router.get("/api/startup")
 def startup_portfolio() -> dict[str, Any]:
     init_db()
@@ -238,6 +285,12 @@ def monitoring() -> dict[str, Any]:
     for v in rows.values():
         v.sort(key=lambda r: r["month"])
     return portfolio_kris(rows)
+
+
+@router.get("/api/csm")
+def csm_endpoint() -> dict[str, Any]:
+    init_db()
+    return csm_screen(list_site_metrics())
 
 
 class FindTrialsRequest(BaseModel):

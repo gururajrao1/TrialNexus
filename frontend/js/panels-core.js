@@ -37,12 +37,14 @@ export async function runAudit() {
         : "<p>None detected.</p>");
     const pid2 = $("auditPid").value.trim();
     const enc = encodeURIComponent(pid2);
-    const [st, bd, o, dctHtml, critHtml] = await Promise.all([
+    const [st, bd, o, dctHtml, critHtml, adaptHtml, consentHtml] = await Promise.all([
       getJSON("/api/protocol-structure/" + enc),
       getJSON("/api/burden/" + enc),
       getJSON("/api/trial-outlook/" + enc),
       runDct(pid2),
       runCriteria(pid2),
+      runAdaptive(),
+      runConsent(pid2),
     ]);
     lastStructure = st;
     el.innerHTML += "<h3>Structured export (M11-inspired)</h3>" +
@@ -70,6 +72,8 @@ export async function runAudit() {
       "<p class='muted'>" + esc(o.basis) + "</p>";
     el.innerHTML += dctHtml;
     el.innerHTML += critHtml;
+    el.innerHTML += adaptHtml;
+    el.innerHTML += consentHtml;
     $("dlStructure").addEventListener("click", () => {
       const blob = new Blob([JSON.stringify(lastStructure, null, 1)], { type: "application/json" });
       const a = document.createElement("a");
@@ -160,6 +164,17 @@ export async function runSafety() {
       "</strong></p><p>" + esc(t.site_query.query_text) + "</p><p class='muted'>Auto-close: " +
       esc(t.site_query.auto_close_condition) + "</p></details>" +
       "</div>").join("");
+    const pid = $("safetyPid").value.trim() || "UNASSIGNED";
+    const lk = await getJSON("/api/lock-readiness/" + encodeURIComponent(pid));
+    const rag = (s) => s === "green" ? "b-elig" : (s === "amber" ? "b-review" : "b-inelig");
+    el.innerHTML += "<h3>Database-lock readiness " +
+      '<span class="badge ' + rag(lk.overall) + '">' + esc(lk.overall) + "</span></h3>" +
+      "<p>Open: " + esc(lk.n_open) + " — Resolved: " + esc(lk.n_resolved) +
+      " — Buckets: " + Object.entries(lk.buckets).map(([b, n]) => esc(b) + "d:" + esc(n)).join(", ") + "</p>" +
+      "<ul class='tight'>" + lk.checks.map((c) =>
+        "<li>" + esc(c.item) + ": " + '<span class="badge ' + rag(c.status) + '">' +
+        esc(c.status) + "</span> <span class='muted'>" + esc(c.detail) + "</span></li>").join("") + "</ul>" +
+      "<p class='muted'>" + esc(lk.basis) + "</p>";
   } catch (err) { fail(el, err); }
 }
 
@@ -303,6 +318,30 @@ export async function runCriteria(pid) {
       w.flags.map((x) => esc(x.issue) + " → " + esc(x.suggestion)).join("; ") + "</li>"
     ).join("") + "</ul>" : "<p>All criteria machine-readable as written.</p>") +
     "<p class='muted'>" + esc(f.basis) + "</p>";
+}
+
+export async function runAdaptive() {
+  const r = await postJSON("/api/adaptive-design",
+    { looks: [0.5, 1.0], alpha: 0.05, spending: "obf" });
+  return "<h3>Adaptive design (interim looks)</h3>" +
+    "<p>Lan-DeMets " + esc(r.spending).toUpperCase() + " spending, α=" +
+    esc(r.alpha) + "</p>" +
+    table(r.looks.map((l) => ({ t: Math.round(l.t * 100) + "%",
+      spent: l.alpha_spent, z: l.z_efficacy, p: l.p_efficacy })),
+      [["t", "Information"], ["spent", "α spent"], ["z", "z stop"],
+       ["p", "p stop"]]) +
+    "<p class='muted'>" + esc(r.basis) + "</p>";
+}
+
+export async function runConsent(pid) {
+  const c = await getJSON("/api/consent-check/" + encodeURIComponent(pid));
+  return "<h3>Consent language <span class='score'>" + esc(c.score) + "</span></h3>" +
+    "<p>" + esc(c.n_sentences) + " sentences, " + esc(c.long_sentences.length) +
+    " long, " + esc(c.jargon_hits.length) + " jargon terms</p>" +
+    (c.suggestions.length ? "<ul class='tight'>" + c.suggestions.map((s) =>
+      "<li>" + esc(s) + "</li>").join("") + "</ul>"
+      : "<p>Plain enough as written.</p>") +
+    "<p class='muted'>" + esc(c.basis) + "</p>";
 }
 
 export async function runOutcomes() {

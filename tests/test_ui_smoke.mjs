@@ -143,6 +143,15 @@ globalThis.fetch = async (url) => {
       counts: { A: 2, B: 6, C: 1 }, worst: [], basis: "b" },
     "/api/attrition/PROT-TNX-001": { dropout_pct: 20, interval_pct: [15, 25],
       drivers: [], basis: "b" },
+    "/api/csm": { sites: [{ site_id: "S", n_flagged: 0, signals: [] }], basis: "b" },
+    "/api/lock-readiness/PROT-TNX-001": { buckets: {}, n_open: 0, n_resolved: 0,
+      checks: [], overall: "green", basis: "b" },
+    "/api/lock-readiness/UNASSIGNED": { buckets: {}, n_open: 0, n_resolved: 0,
+      checks: [], overall: "green", basis: "b" },
+    "/api/adaptive-design": { spending: "obf", alpha: 0.05,
+      looks: [{ t: 0.5, alpha_spent: 0, z_efficacy: 0, p_efficacy: 0 }], basis: "b" },
+    "/api/consent-check/PROT-TNX-001": { score: 90, n_sentences: 1,
+      long_sentences: [], jargon_hits: [], suggestions: [], basis: "b" },
   };
   if (!(path in routes)) throw new Error("unstubbed endpoint: " + path);
   return { ok: true, json: async () => routes[path] };

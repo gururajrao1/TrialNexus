@@ -317,6 +317,22 @@ def insert_safety_query(row: dict[str, Any], db_path: Path | None = None) -> Non
         conn.close()
 
 
+def update_safety_resolution(
+    query_id: str, status: str, db_path: Path | None = None
+) -> bool:
+    """Set a safety query's resolution status. True when a row changed."""
+    conn = get_connection(db_path)
+    try:
+        cur = conn.execute(
+            "UPDATE safety_queries SET resolution_status = ? WHERE id = ?",
+            (status, query_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 def _enforce_history_cap(conn: sqlite3.Connection, table: str) -> None:
     conn.execute(
         f"DELETE FROM {table} WHERE rowid NOT IN "

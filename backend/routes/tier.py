@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from backend.agents.adaptive_design import group_sequential
 from backend.agents.burden_scorer import score_burden
 from backend.agents.enrollment_forecast import forecast, site_priors_from_metrics
 from backend.agents.mcode import mcode_profile
@@ -68,6 +69,24 @@ def trial_outlook(protocol_id: str) -> dict[str, Any]:
             audit,
         )
     return outlook(audit, score_burden(proto["raw_content"]))
+
+
+class AdaptiveRequest(BaseModel):
+    looks: list[float] = [0.5, 1.0]
+    alpha: float = 0.05
+    spending: str = "obf"
+
+
+@router.post("/api/adaptive-design")
+def adaptive_design(body: AdaptiveRequest) -> dict[str, Any]:
+    if body.spending not in ("obf", "pocock"):
+        raise HTTPException(status_code=400, detail="spending must be obf|pocock")
+    if not 0 < body.alpha < 0.5 or len(body.looks) < 1 or len(body.looks) > 5:
+        raise HTTPException(status_code=400, detail="need 1-5 looks, 0<alpha<0.5")
+    try:
+        return group_sequential(body.looks, body.alpha, body.spending)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/api/forecast")

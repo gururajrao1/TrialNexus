@@ -92,6 +92,18 @@ export async function runMonitoring() {
         "<p>" + esc(s.action) + "</p></div>";
     }).join("") +
       "<p class='muted'>Alert sites: " + esc(r.alert_site_ids.join(", ") || "none") + ". " + esc(r.note) + "</p>";
+    const csm = await getJSON("/api/csm");
+    el.innerHTML += "<h3>Centralized statistical monitoring</h3>" +
+      csm.sites.map((s) =>
+        "<p><strong>" + esc(s.site_id) + "</strong> — " + esc(s.n_flagged) + " flags</p>" +
+        (s.n_flagged ? table(s.signals.filter((x) => x.flag).map((x) =>
+          ({ kri: x.kri, rate: x.rate + " (pool " + x.pooled + ")", z: x.z,
+             p: "hi " + x.p_high + " / lo " + x.p_low, funnel: x.funnel,
+             dir: x.direction })),
+          [["kri", "KRI"], ["rate", "Rate"], ["z", "z"], ["p", "Poisson p"],
+           ["funnel", "Funnel"], ["dir", "Direction"]]) : "")
+      ).join("") +
+      "<p class='muted'>" + esc(csm.basis) + "</p>";
   } catch (err) { fail(el, err); }
 }
 
