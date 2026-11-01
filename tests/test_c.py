@@ -140,6 +140,13 @@ class ConsentTests(unittest.TestCase):
         plain = check_consent("You get the drug by vein. We watch for side effects.")
         self.assertEqual(plain["score"], 100)
 
+    def test_overlapping_terms_count_once(self):
+        c = check_consent("Report a serious adverse event at once.")
+        terms = {h["term"] for h in c["jargon_hits"]}
+        self.assertIn("serious adverse event", terms)
+        self.assertNotIn("adverse event", terms)
+        self.assertEqual(c["score"], 97)
+
 
 if __name__ == "__main__":
     unittest.main()

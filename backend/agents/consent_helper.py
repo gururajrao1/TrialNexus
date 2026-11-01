@@ -36,6 +36,18 @@ def _sentences(text: str) -> list[str]:
     return [p.strip() for p in parts if len(p.split()) >= 3]
 
 
+def _claim_spans(
+    low: str, term: str, claimed: list[tuple[int, int]]
+) -> list[tuple[int, int]]:
+    """Occurrences of term that do not overlap already-claimed spans."""
+    fresh = []
+    for m in re.finditer(re.escape(term), low):
+        span = (m.start(), m.end())
+        if not any(s < span[1] and span[0] < e for s, e in claimed):
+            fresh.append(span)
+    return fresh
+
+
 def check_consent(text: str) -> dict[str, Any]:
     """Flag long sentences + jargon with plain alternatives."""
     sents = _sentences(text)
@@ -45,11 +57,15 @@ def check_consent(text: str) -> dict[str, Any]:
         if len(s.split()) > LONG_WORDS
     ][:10]
     low = text.lower()
-    hits = [
-        {"term": term, "plain": plain, "count": len(re.findall(re.escape(term), low))}
-        for term, plain in JARGON
-        if term in low
-    ]
+    # Longest terms first so "serious adverse event" claims its span before
+    # the shorter "adverse event" can double-count the same words.
+    claimed: list[tuple[int, int]] = []
+    hits = []
+    for term, plain in sorted(JARGON, key=lambda jp: -len(jp[0])):
+        spans = _claim_spans(low, term, claimed)
+        if spans:
+            claimed.extend(spans)
+            hits.append({"term": term, "plain": plain, "count": len(spans)})
     hits.sort(key=lambda h: -h["count"])
     score = max(0, 100 - 4 * len(long) - 3 * sum(h["count"] for h in hits))
     suggestions = (
