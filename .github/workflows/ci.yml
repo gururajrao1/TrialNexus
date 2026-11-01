@@ -51,7 +51,9 @@ jobs:
       - name: Install browser system deps
         run: |
           if [ ! -f frontend/js/boot.js ]; then echo "no full UI on this branch"; exit 0; fi
-          sudo python -m playwright install-deps chromium
+          # Absolute interpreter: bare `sudo python` loses the setup-python
+          # PATH (secure_path) and can't find the playwright module.
+          sudo "$(which python)" -m playwright install-deps chromium
       - name: Browser pixel check (main UI only)
         run: |
           if [ ! -f frontend/js/boot.js ]; then echo "no full UI on this branch"; exit 0; fi
