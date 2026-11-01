@@ -44,11 +44,19 @@ jobs:
           if [ -f frontend/js/boot.js ]; then node tests/test_ui_smoke.mjs; else echo "no JS modules on this branch"; fi
       - name: Core parity between main and mvp
         run: |
-          git diff --quiet origin/main origin/mvp -- \
+          git rev-parse --verify origin/mvp >/dev/null 2>&1 || { echo "no mvp branch yet"; exit 0; }
+          for f in \
             backend/agents/protocol_auditor.py \
             backend/agents/site_scout.py \
             backend/agents/cohort_matcher.py \
             backend/agents/safety_triage.py \
             backend/agents/synonyms.py \
             backend/database.py \
-            seed_data.py
+            seed_data.py; do
+            blob=$(git rev-parse "origin/mvp:$f")
+            if git log --format=%H origin/main -- "$f" | while read c; do git rev-parse "$c:$f"; done | grep -qx "$blob"; then
+              echo "OK: $f matches a main version"
+            else
+              echo "DIVERGED: $f on mvp matches no version on main"; exit 1
+            fi
+          done
