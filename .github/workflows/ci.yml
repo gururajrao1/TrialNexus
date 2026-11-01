@@ -8,7 +8,9 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest migrated to Ubuntu 26, whose apt names break
+    # Playwright's install-deps. Revisit when Playwright supports it.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,7 +60,7 @@ jobs:
           STATUS=$?
           set -e
           cat /tmp/pixel.log
-          kill $SERVER_PID
+          kill $SERVER_PID || true
           if [ $STATUS -ne 0 ]; then
             echo "::error::pixel-failed::$(tail -c 2500 /tmp/pixel.log | tr '\n' ' ')"
           fi
