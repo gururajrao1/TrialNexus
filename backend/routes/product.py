@@ -12,7 +12,10 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from backend.agents.attrition import predict_attrition
 from backend.agents.burden_scorer import score_burden
+from backend.agents.criteria_feedback import design_feedback
+from backend.agents.dct_readiness import dct_readiness
 from backend.agents.diversity_planner import DEFAULT_TARGETS, plan_diversity
 from backend.agents.external_control import build_external_control
 from backend.agents.failure_forensics import forensic_report
@@ -20,6 +23,8 @@ from backend.agents.kri_monitor import portfolio_kris
 from backend.agents.protocol_auditor import parse_protocol
 from backend.agents.pubmed import fetch_pubmed
 from backend.agents.retention import retention_risk
+from backend.agents.safety_triage import triage_records
+from backend.agents.signal_detection import detect_signals
 from backend.agents.site_scout import fetch_ctgov_outcomes
 from backend.agents.startup_tracker import STAGES, startup_report
 from backend.agents.structured_export import build_structure
@@ -185,6 +190,29 @@ def burden_endpoint(protocol_id: str) -> dict[str, Any]:
     return score_burden(proto["raw_content"])
 
 
+@router.get("/api/dct-readiness/{protocol_id}")
+def dct_readiness_endpoint(protocol_id: str) -> dict[str, Any]:
+    init_db()
+    proto = get_protocol(protocol_id)
+    if not proto:
+        raise HTTPException(status_code=404, detail="Protocol not found")
+    return dct_readiness(score_burden(proto["raw_content"]), proto["raw_content"])
+
+
+@router.get("/api/criteria-feedback/{protocol_id}")
+def criteria_feedback_endpoint(protocol_id: str) -> dict[str, Any]:
+    init_db()
+    proto = get_protocol(protocol_id)
+    if not proto:
+        raise HTTPException(status_code=404, detail="Protocol not found")
+    if not proto["audit_results"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Protocol not audited yet; call /api/audit-protocol/{id} first",
+        )
+    return design_feedback(json.loads(proto["audit_results"]))
+
+
 @router.get("/api/startup")
 def startup_portfolio() -> dict[str, Any]:
     init_db()
@@ -279,6 +307,17 @@ def retention_endpoint(body: RetentionRequest) -> dict[str, Any]:
     return retention_risk(score_burden(proto["raw_content"]), body.bundle)
 
 
+@router.get("/api/attrition/{protocol_id}")
+def attrition_endpoint(protocol_id: str) -> dict[str, Any]:
+    init_db()
+    proto = get_protocol(protocol_id)
+    if not proto:
+        raise HTTPException(status_code=404, detail="Protocol not found")
+    burden = score_burden(proto["raw_content"])
+    sae_n = sum(1 for q in list_safety_queries(protocol_id) if q.get("is_sae"))
+    return predict_attrition(burden, dct_readiness(burden, proto["raw_content"]), sae_n)
+
+
 @router.get("/api/outcome-benchmark")
 def outcome_benchmark(condition: str, phase: str = "") -> dict[str, Any]:
     if not condition.strip():
@@ -294,3 +333,15 @@ def pubmed_lookup(term: str, retmax: int = 5) -> dict[str, Any]:
     if not term.strip():
         raise HTTPException(status_code=400, detail="term is required")
     return fetch_pubmed(term.strip(), retmax)
+
+
+class SignalRequest(BaseModel):
+    records: list[dict[str, Any]]
+
+
+@router.post("/api/safety-signals")
+def safety_signals(body: SignalRequest) -> dict[str, Any]:
+    if not body.records:
+        raise HTTPException(status_code=400, detail="records is required")
+    triaged = triage_records(body.records)["triaged_records"]
+    return detect_signals(triaged)

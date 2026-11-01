@@ -207,6 +207,7 @@ def triage_one(record: dict[str, Any]) -> dict[str, Any]:
     return {
         "discrepancy_id": str(record.get("discrepancy_id", record.get("id", "DISC-?"))),
         "patient_id": str(record.get("patient_id", "unknown")),
+        "suspect_drug": str(record.get("suspect_drug", "unknown")),
         "reported_term": term,
         "meddra_classification": {"soc": soc, "preferred_term": pt},
         "severity_grade": grade,

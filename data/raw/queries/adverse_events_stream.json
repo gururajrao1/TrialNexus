@@ -4,7 +4,24 @@
     "patient_id": "PT-4420",
     "reported_term": "Acute elevated ALT/AST post-dose",
     "description": "ALT 185 U/L exceeds 3x ULN recorded on Day 14, no hyperbilirubinemia",
-    "severity": "MODERATE"
+    "severity": "MODERATE",
+    "suspect_drug": "TNX-101"
+  },
+  {
+    "discrepancy_id": "DISC-901b",
+    "patient_id": "PT-4426",
+    "reported_term": "ALT increased Day 21",
+    "description": "ALT 210 U/L, 4x ULN, treatment continued",
+    "severity": "MODERATE",
+    "suspect_drug": "TNX-101"
+  },
+  {
+    "discrepancy_id": "DISC-901c",
+    "patient_id": "PT-4433",
+    "reported_term": "AST increased Day 14",
+    "description": "AST 160 U/L, 3x ULN, asymptomatic",
+    "severity": "MODERATE",
+    "suspect_drug": "TNX-101"
   },
   {
     "discrepancy_id": "DISC-902",
@@ -12,20 +29,55 @@
     "reported_term": "Febrile neutropenia with inpatient hospitalization",
     "description": "Unexpected Grade 4 febrile neutropenia, hospitalized Day 9",
     "severity": "SEVERE",
-    "unexpected": true
+    "unexpected": true,
+    "suspect_drug": "TNX-101"
   },
   {
     "discrepancy_id": "DISC-903",
     "patient_id": "PT-4431",
     "reported_term": "QTc prolongation on ECG",
     "description": "QTc 495 msec on Day 1 post-dose ECG, asymptomatic",
-    "severity": "SEVERE"
+    "severity": "SEVERE",
+    "suspect_drug": "TNX-101"
+  },
+  {
+    "discrepancy_id": "DISC-905",
+    "patient_id": "PT-4440",
+    "reported_term": "Headache post-dose",
+    "description": "Grade 1 headache resolving same day",
+    "severity": "MILD",
+    "suspect_drug": "TNX-101"
   },
   {
     "discrepancy_id": "DISC-904",
     "patient_id": "PT-4402",
     "reported_term": "Mild nausea post-infusion",
     "description": "Grade 1 nausea resolving within 24 hours",
-    "severity": "MILD"
+    "severity": "MILD",
+    "suspect_drug": "Placebo"
+  },
+  {
+    "discrepancy_id": "DISC-906",
+    "patient_id": "PT-4409",
+    "reported_term": "Nausea Day 2",
+    "description": "Grade 1 nausea, no treatment needed",
+    "severity": "MILD",
+    "suspect_drug": "Placebo"
+  },
+  {
+    "discrepancy_id": "DISC-907",
+    "patient_id": "PT-4415",
+    "reported_term": "Fatigue",
+    "description": "Grade 1 fatigue for two days",
+    "severity": "MILD",
+    "suspect_drug": "Placebo"
+  },
+  {
+    "discrepancy_id": "DISC-908",
+    "patient_id": "PT-4422",
+    "reported_term": "Headache",
+    "description": "Grade 1 headache resolving spontaneously",
+    "severity": "MILD",
+    "suspect_drug": "Placebo"
   }
 ]

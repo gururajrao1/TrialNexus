@@ -16,7 +16,7 @@ Session constraints added on top: **zero cost** (no OpenRouter / Nemotron / NIM
 at all), **storage-light** (tiny repo, split dependencies, no model downloads),
 built directly in this folder (no background agents after the direct-build switch).
 
-## What is done (122 files, ≈ 1 MB tracked; DB + caches generated and ignored)
+## What is done (77 files, ≈ 0.4 MB tracked; DB + caches generated and ignored)
 
 | Cookbook item | Status | Delivered as |
 |---|---|---|
@@ -69,6 +69,12 @@ built directly in this folder (no background agents after the direct-build switc
 | PubMed literature (G2) | Done | `pubmed.py` + `/api/pubmed`; Entrez, disk cache, offline fallback |
 | Token auth (G3) | Done | `backend/auth.py` middleware; env-gated, UI prompts once per session |
 | Pixel proof (G4) | Done | `tests/test_ui_pixel.py` + CI Chromium job + screenshot artifact |
+| PV signals (R1) | Done | `signal_detection.py` + `/api/safety-signals`; Evans/ROR, 10-record 2-arm seeds |
+| Calibrated outlook (R2) | Done | Log-odds v2 in `risk_models.py` (0.399 → 0.300); disclosed coefficients |
+| Attrition (R3) | Done | `attrition.py` + `/api/attrition`; 18% base + demands/safety/DCT |
+| DCT readiness (R4) | Done | `dct_readiness.py` + `/api/dct-readiness`; per-visit modality matrix |
+| Zero-enroll (R5) | Done | Scorecard in `kri_monitor.py`; bands via existing `/api/monitoring` |
+| Criteria feedback (R6) | Done | `criteria_feedback.py` + `/api/criteria-feedback`; A/B/C + fixes |
 | UI polish | Done | Portfolio stats, site-query fields, Yes/No cells — no stray JSON |
 | Value map | Done | `PRODUCT_VALUE_MAP.md`: per-feature deliverables × product value |
 | Smoke tests | Done, green | `tests/test_smoke.py`, stdlib unittest, 5/5 passing |
@@ -95,6 +101,9 @@ built directly in this folder (no background agents after the direct-build switc
   incl. `test_ingest` ×9) + 39/39 e2e + UI smoke on main; PubMed
   verified live (113 hits), PDF audit round-trips to identical 5/4,
   suite repeatable via crashing-run cleanup + delete check
+- R-track: ruff clean; 69 unit (68 pass + 1 browser skip, incl.
+  `test_r` ×9) + 45/45 e2e + UI smoke on main; outlook recalibrated
+  0.399 → 0.300 with log-odds drivers (test expectations updated)
 
 ## Bugs found and fixed during verification
 

@@ -19,6 +19,7 @@ const IDS = new Set([
   "outcomesCondition", "outcomesPhase", "outcomesResult", "outcomesForm",
   "forensicResult",
   "pdfFile", "pdfForm", "pubmedTerm", "pubmedResult", "pubmedForm",
+  "signalForm", "signalsResult",
 ]);
 for (const t of TABS) { IDS.add("tabbtn-" + t); IDS.add("tab-" + t); IDS.add(t + "Form"); }
 
@@ -104,7 +105,8 @@ globalThis.fetch = async (url) => {
         days_in_stage: 1, days_since_identified: 2, flags: [] }], as_of: "d",
       benchmarks: { contract_days: 1, irb_days: 1, activation_days: 1 }, flagged_site_ids: [] },
     "/api/monitoring": { sites: [{ site_id: "S", worst: "ok",
-        kris: [{ kri: "k", value: 1, detail: "d", status: "ok" }], action: "a" }],
+        kris: [{ kri: "k", value: 1, detail: "d", status: "ok" }], action: "a",
+        zero_enroll: { score: 0, band: "low", factors: [] } }],
       alert_site_ids: [], note: "n" },
     "/api/find-trials": { patient_id: "p", ranked: [{ title: "t", status: "ELIGIBLE",
       match_percentage: 90, protocol_id: "P", phase: "1", top_reasons: ["r"] }] },
@@ -133,6 +135,14 @@ globalThis.fetch = async (url) => {
       exclusions: [],
       top_drivers: [{ criterion_id: "INC-01", kind: "k", rate: 0, n: 0 }],
       note: "n" },
+    "/api/dct-readiness/PROT-TNX-001": { readiness_score: 67, remote_capable_n: 2,
+      total_visits: 3, econsent_mentioned: false,
+      visits: [{ day: "1", procedures: [], modalities: [], verdict: "on-site" }],
+      basis: "b" },
+    "/api/criteria-feedback/PROT-TNX-001": { design_score: 64,
+      counts: { A: 2, B: 6, C: 1 }, worst: [], basis: "b" },
+    "/api/attrition/PROT-TNX-001": { dropout_pct: 20, interval_pct: [15, 25],
+      drivers: [], basis: "b" },
   };
   if (!(path in routes)) throw new Error("unstubbed endpoint: " + path);
   return { ok: true, json: async () => routes[path] };

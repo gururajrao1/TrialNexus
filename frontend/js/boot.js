@@ -9,6 +9,7 @@ import {
   runPubmed,
   runRetention,
   runSafety,
+  runSignals,
   runSites,
   runSweep,
 } from "./panels-core.js";
@@ -80,6 +81,7 @@ $("retentionForm").addEventListener("submit", (e) => { e.preventDefault(); runRe
 $("outcomesForm").addEventListener("submit", (e) => { e.preventDefault(); runOutcomes(); });
 $("pdfForm").addEventListener("submit", (e) => { e.preventDefault(); runPdf(); });
 $("pubmedForm").addEventListener("submit", (e) => { e.preventDefault(); runPubmed(); });
+$("signalForm").addEventListener("submit", (e) => { e.preventDefault(); runSignals(); });
 
 /* Boot: snapshot, prefill, then auto-run all thirteen panels. */
 loadSnapshot().then(loadDemo).then(loadDiversityDefaults).then(() => {

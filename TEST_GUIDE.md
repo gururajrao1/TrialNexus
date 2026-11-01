@@ -4,7 +4,7 @@
 
 ```bat
 python seed_data.py
-python -m unittest discover -s tests        :: fast offline suite (60 tests)
+python -m unittest discover -s tests        :: fast offline suite (69 tests)
 uvicorn backend.app:app --port 8000         :: leave running
 python tests/test_e2e_live.py               :: live problem-statement checks
 ```
@@ -203,6 +203,24 @@ grounding, and a demo server on a shared network needs a lock.
 - Proves: the original-file path, the literature path, and the lock
   all work — and degrade honestly.
 
+## Scenario 16 — R-track: signals, DCT, design, attrition
+
+Problem: safety signals hide in case lists, DCT choices are
+hand-waved, criteria ship vague, attrition surprises, and success
+odds lack calibrated grounding.
+
+- Safety triage tab: Screen records above. Expect 0 signals and the
+  TNX-101 liver watch (PRR 5.0) with the Evans/ROR basis.
+- Protocol audit tab: DCT readiness (score 67; Day 1 on-site, Day 14
+  home nursing/imaging, Day 16 televisit) and Criteria design
+  (score 64; INC-04 graded C with fixes).
+- Cohort matching tab: retention panel now ends with trial attrition
+  (expected dropout % + interval + drivers).
+- Monitoring tab: zero-enroll badges (SITE-002 high, others low).
+- Protocol audit tab: outlook now ≈ 0.30 with log-odds drivers.
+- Proves: literature-backed operations math across safety, design,
+  enrollment, and planning — all deterministic.
+
 ## Features × data map
 
 | Feature | Input data | What it does | Output |
@@ -236,6 +254,12 @@ grounding, and a demo server on a shared network needs a lock.
 | PDF ingestion | Uploaded PDF (base64 JSON) | pypdf text extract (30pp/120Kch caps) → standard audit | `PDF-<name>` protocol + full audit |
 | PubMed literature | Search term | Entrez esearch + esummary, disk-cached, offline-safe | Hit count + PMID cards + source chip |
 | Token auth | `TRIALNEXUS_API_TOKEN` env | Bearer guard on `/api/*` (health/UI/docs open) | 401 without token, UI prompts once |
+| Signal detection | Triaged AE records + suspect arms | ROR/PRR/χ² per drug-event pair, Evans criteria | Signal/watch tables + basis |
+| DCT readiness | Burden visits + raw text | Procedure → modality mapping, trial score | Per-visit matrix, score 67 |
+| Criteria feedback | Audited I/E criteria | Vague/bundled/unit/window grading A/B/C + fixes | Design score, worst list |
+| Zero-enroll risk | `site_metrics` history | Zero-months + gap + trend scorecard | Band badge per site |
+| Attrition | Burden + DCT + SAE history | Literature-calibrated dropout % + interval | Trial estimate + drivers |
+| Calibrated outlook | Audit + burden | Log-odds logistic, TrialBench 4-way split | Success P ≈ 0.30 + drivers |
 | Snapshot + demo feed | SQLite + seed files | Counts + prefill payloads for the UI | `/api/snapshot`, `/api/demo-data` |
 
 ## Data catalog (every file earns its place)
@@ -248,8 +272,8 @@ grounding, and a demo server on a shared network needs a lock.
 - `patient_002_control.json` — hard fails (ANC 900, prior osimertinib).
 - `patient_003_review.json` — missing-data case + negation trap.
 - `patient_004_her2.json` / `patient_005_diabetes.json` — finder + mCODE demos.
-- `adverse_events_stream.json` — routine liver signal, unexpected SAE,
-  severe QTc, mild nausea.
+- `adverse_events_stream.json` — 10 records, TNX-101 vs Placebo arms:
+  liver cluster (signal watch), unexpected SAE, severe QTc, routine events.
 - `trialnexus_state.db` — SQLite WAL store (seeded: 3 protocols, 3 sites,
   startup pipeline, monthly metrics; evaluations/queries accumulate).
 
@@ -261,5 +285,5 @@ grounding, and a demo server on a shared network needs a lock.
   shows the parsed sub-rules for review.
 - Diversity defaults are illustrative; plug in protocol-specific DAP targets.
 - Twins probe measurement sensitivity only — never efficacy or safety.
-- Outlook is a transparent heuristic until fitted on HINT public data.
+- Outlook/attrition are calibrated bootloaders until fitted on TrialBench public data.
 - Full n2c2 validation needs a DUA; only the synthetic fixture ships.

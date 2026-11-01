@@ -187,12 +187,39 @@ and the product value it adds (problem → outcome, with the evidence behind it)
   better than a DOM stub. One env var secures the API; every push now
   proves the app boots in a real browser.
 
+## 22. Calibrated planning models (outlook + attrition)
+
+- Deliverables: log-odds outlook v2 in `risk_models.py`;
+  `backend/agents/attrition.py` + `GET /api/attrition/{id}`;
+  scenario 16.
+- Value: gut-feel success odds and surprise dropouts become
+  literature-anchored numbers with named drivers — plannable,
+  challengeable, and ready to graduate to fitted TrialBench models.
+
+## 23. Safety + design operations (signals, DCT, criteria)
+
+- Deliverables: `signal_detection.py` + `POST /api/safety-signals`;
+  `dct_readiness.py` + `GET /api/dct-readiness/{id}`;
+  `criteria_feedback.py` + `GET /api/criteria-feedback/{id}`.
+- Value: case lists become watchlists (Evans/ROR), DCT choices become
+  a per-visit matrix instead of hand-waving, and vague criteria get
+  graded with fixes before they become amendments.
+
+## 24. Site foresight (zero-enroll flags)
+
+- Deliverables: scorecard in `kri_monitor.py`, badges in the
+  Monitoring tab; no new endpoint needed.
+- Value: the observable half of ML site-behavior prediction for free —
+  zero-months, gaps, and declining run-rates flag the next
+  non-enroller while there is still time to intervene.
+
 ## How it adds up
 
 Design (1, 9, 10) → select (2, 11) → enroll (3, 13, 7) → monitor (4, 12) →
-document (8, 14, 20) → optimize (16, 17, 18, 19), with (5) as the
-free-to-run foundation, (6) as the single surface, and (15, 21) as the
-proof layer. Each feature consumes the last one's output: audited criteria
-feed matching, matches feed diversity and history, history feeds forensics
-and monitoring. That compounding — not any single tab — is the product: a
-trial operations loop that runs end to end, offline, for $0.
+document (8, 14, 20) → optimize (16, 17, 18, 19) → calibrate (22, 23, 24),
+with (5) as the free-to-run foundation, (6) as the single surface, and
+(15, 21) as the proof layer. Each feature consumes the last one's output:
+audited criteria feed matching, matches feed diversity and history,
+history feeds forensics, monitoring, and now signals, attrition, and
+site foresight. That compounding — not any single tab — is the product:
+a trial operations loop that runs end to end, offline, for $0.

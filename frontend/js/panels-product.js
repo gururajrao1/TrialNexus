@@ -81,10 +81,14 @@ export async function runMonitoring() {
     const r = await getJSON("/api/monitoring");
     el.innerHTML = r.sites.map((s) => {
       const badge = s.worst === "alert" ? "b-inelig" : (s.worst === "watch" ? "b-review" : "b-elig");
+      const z = s.zero_enroll || { score: 0, band: "low", factors: [] };
+      const zb = z.band === "high" ? "b-inelig" : (z.band === "elevated" ? "b-review" : "b-elig");
       return '<div class="record"><h3>' + esc(s.site_id) + ' <span class="badge ' + badge + '">' +
-        esc(s.worst) + "</span></h3>" +
+        esc(s.worst) + "</span> " +
+        '<span class="badge ' + zb + '">zero-enroll ' + esc(z.band) + " " + esc(z.score) + "</span></h3>" +
         table(s.kris.map((k) => ({ kri: k.kri, value: k.value, detail: k.detail, status: k.status })),
           [["kri", "KRI"], ["value", "Value"], ["detail", "Detail"], ["status", "Status"]]) +
+        "<p class='muted'>Zero-enroll risk: " + esc(z.factors.join("; ")) + "</p>" +
         "<p>" + esc(s.action) + "</p></div>";
     }).join("") +
       "<p class='muted'>Alert sites: " + esc(r.alert_site_ids.join(", ") || "none") + ". " + esc(r.note) + "</p>";

@@ -27,14 +27,14 @@ $2.6B, much of it operational friction:
 
 | # | Tab | What it does |
 |---|---|---|
-| 1 | Protocol audit | I/E extraction, fragility, $ exposure, M11 export, burden, outlook, outcome benchmarks, PDF upload |
+| 1 | Protocol audit | I/E extraction, fragility, $ exposure, M11 export, burden, outlook, outcome benchmarks, PDF upload, DCT + criteria design |
 | 2 | Site feasibility | Ranked sites + Poisson-Gamma forecast (optional observed-history priors) |
-| 3 | Cohort matching | FHIR patients → ELIGIBLE / INELIGIBLE / REVIEW_REQUIRED + sweep + retention |
-| 4 | Safety triage | AE triage with SAE flags, clocks, Signal column, enrichment, site queries, PubMed |
+| 3 | Cohort matching | FHIR patients → ELIGIBLE / INELIGIBLE / REVIEW_REQUIRED + sweep + retention + attrition |
+| 4 | Safety triage | AE triage with SAE flags, clocks, Signal column, enrichment, site queries, PubMed, ROR/PRR signals |
 | 5 | Diversity plan | Enrollment mix vs goals, gaps, focus areas |
 | 6 | History & export | Every run persisted; forensics; CSV downloads |
 | 7 | Study startup | Pipeline stages vs benchmark flags |
-| 8 | Monitoring | Central KRIs with alert/watch/ok per site |
+| 8 | Monitoring | Central KRIs with alert/watch/ok per site + zero-enroll risk |
 | 9 | Find trials | Reverse match: patient → ranked trials |
 | 10 | External control | Relaxed-criteria comparator pool + methods note |
 | 11 | Synthetic twins | Measurement-sensitivity stress test (in-memory) |
@@ -56,7 +56,7 @@ pip install -r requirements.txt        :: 5 packages: fastapi, uvicorn, pydantic
 
 :: 2. Seed the database and run the fast suite (no server needed):
 python seed_data.py
-python -m unittest discover -s tests  :: 60 tests, ~40 seconds (1 CI-only browser skip)
+python -m unittest discover -s tests  :: 69 tests, ~35 seconds (1 CI-only browser skip)
 
 :: 3. Start the API (leave running) and open the app:
 uvicorn backend.app:app --port 8000
@@ -64,7 +64,7 @@ uvicorn backend.app:app --port 8000
 
 - UI: http://localhost:8000/
 - Interactive API docs: http://localhost:8000/docs
-- Live checks: `python tests/test_e2e_live.py` (39 checks, needs the server)
+- Live checks: `python tests/test_e2e_live.py` (45 checks, needs the server)
 
 OneDrive tip: right-click `.venv` → "Free up space" to keep it on-demand.
 
@@ -96,14 +96,15 @@ FastAPI  backend/app.py  ── thin entrypoint: UI + static + routers
         ├── routes/product.py  diversity, history/export, structure,
         │                      burden, startup, monitoring, finder,
         │                      external-control, forensics, retention,
-        │                      outcome-benchmark, pubmed
+        │                      outcome-benchmark, pubmed, signals,
+        │                      dct-readiness, criteria-feedback, attrition
         └── routes/tier.py     outlook, forecast (+history), sweep, twins,
                                mcode, n2c2-status
         │
         ▼
 agents  backend/agents/*.py  ── pure deterministic functions
         │  (protocol_auditor, site_scout, cohort_matcher, safety_triage,
-        │   + 18 product/Tier/S/G modules; see Features)
+        │   + 22 product/Tier/S/G/R modules; see Features)
         ▼
 SQLite (WAL)  data/local_db/trialnexus_state.db  ── via backend/database.py
 config  backend/config.py  ── every path + cap in one place
@@ -133,7 +134,7 @@ trialnexus/
 │   ├── router.py                # ZeroCostRouter (optional Ollama probe)
 │   ├── database.py              # SQLite WAL layer (7 tables + schema_version)
 │   ├── routes/                  # core.py, product.py, tier.py
-│   └── agents/                  # 4 cookbook agents + 18 product/Tier/S/G modules
+│   └── agents/                  # 4 cookbook agents + 22 product/Tier/S/G/R modules
 ├── frontend/
 │   ├── index.html               # 13 tabs + snapshot + stepper
 │   ├── styles.css               # life-sciences theme
@@ -163,7 +164,7 @@ Seed data catalog (every file earns its place):
 | `patient_003_review.json` | Missing-data case + negation trap + Assessment note |
 | `patient_004_her2.json` | HER2+ breast case (finder + mCODE demo) |
 | `patient_005_diabetes.json` | Diabetes case (finder demo) |
-| `adverse_events_stream.json` | Routine liver signal, unexpected SAE, severe QTc, mild nausea |
+| `adverse_events_stream.json` | 10 records across TNX-101/Placebo arms: liver cluster (signal watch), unexpected SAE, severe QTc, mild routine events |
 
 ## Features — what each does and how to test it
 
@@ -312,12 +313,17 @@ activated → first-patient-in, flagging stages that exceed benchmarks
 Computes 5 Key Risk Indicators per site from monthly metrics
 (enrollment, screen-failure proxy, query rate, deviations, SAEs) against
 tolerance limits, with an alert/watch/ok roll-up and a recommended action
-(visit, remote check-in, or no action).
+(visit, remote check-in, or no action). Each site also carries a
+**zero-enroll risk** scorecard (zero-months + latest gap + declining
+run-rate → low/elevated/high) — the observable half of ML site-behavior
+prediction.
 
 - **Try it:** Monitoring tab (auto-runs). Expect SITE-002 red with alert
-  KRIs + visit recommendation, SITE-001 green, SITE-003 amber watch.
+  KRIs + visit recommendation, SITE-001 green, SITE-003 amber watch —
+  plus zero-enroll badges (002 high, 001/003 low).
 - **API:** `GET /api/monitoring`.
-- **Proof:** `KRITest`, e2e `monitoring flags SITE-002 only`.
+- **Proof:** `KRITest`, `ZeroEnrollTests` ×1, e2e `monitoring flags
+  SITE-002 only`, `zero-enroll risk bands separate sites`.
 
 ### 10. Trial finder — patient → trials, not trial → charts
 
@@ -365,19 +371,23 @@ the response tags each site `observed` vs `provided`.
   e2e `forecast returns ordered percentiles`,
   `forecast blends observed site history`, `STrackTests` priors ×1.
 
-### 13. Trial outlook — success odds with named drivers
+### 13. Trial outlook — calibrated success odds with named drivers
 
-Transparent heuristic (HINT/TrialBench-inspired bootloader): literature
-phase base rates discounted by fragility and burden, with a 4-way split
-(success / enrollment / safety / efficacy failure) and plain-language
-drivers. Disclosed as a heuristic until fitted on public HINT data.
+Literature-calibrated logistic (v2 bootloader): phase base rates enter
+as log-odds priors, discounted by fragility, burden, and organ-safety
+load with fully disclosed coefficients — HINT's probabilistic framing
+without the fitted network. 4-way TrialBench failure split with
+published efficacy-heavy anchors. Graduate path: fit coefficients on
+TrialBench's public approval-outcome task data.
 
 - **Try it:** Protocol audit tab → scroll to Trial outlook. Expect a
-  success probability (≈ 0.40 for PROT-TNX-001) with failure shares that
-  sum to 1 and 4 drivers.
+  success probability (≈ 0.30 for PROT-TNX-001) with failure shares
+  that sum to 1 and 4 drivers quoting log-odds contributions.
 - **API:** `GET /api/trial-outlook/PROT-TNX-001`.
-- **Proof:** `Tier12Tests.test_outlook_contract`, e2e `outlook returns
-  success probability + breakdown`.
+- **Proof:** `Tier12Tests.test_outlook_contract`,
+  `OutlookTests` ×2 (contract, fragility-monotonicity), e2e `outlook
+  returns success probability + breakdown`,
+  `outlook calibrated log-odds drivers`.
 
 ### 14. Synthetic twins — measurement-sensitivity stress test
 
@@ -460,6 +470,14 @@ rescore with convertible visits done remotely.
 - **Proof:** `STrackTests` retention ×1, e2e `retention scores with
   what-if`.
 
+Trial-level companion: **attrition prediction** (`GET
+/api/attrition/{id}`) estimates expected dropout % from an 18%
+literature baseline adjusted for trial demands (the duration proxy —
+strongest published predictor), observed SAEs, and DCT relief, with a
+heuristic interval and named drivers. Rendered under the retention
+panel; proof `AttritionTests` ×1, e2e `attrition predicts bounded
+dropout`.
+
 ### 20. Outcome benchmark — what did similar trials achieve?
 
 Benchmarks the indication against completed CT.gov trials: counts,
@@ -503,6 +521,49 @@ source chips, disk-cached like the CT.gov lookups.
 - **Proof:** `PubMedTests` ×2 (offline parsers, never-crashes fetch),
   e2e `pubmed returns literature shape`.
 
+### 23. Safety signal detection — ROR/PRR over drug-event pairs
+
+Frequentist disproportionality screening: PRR + χ² (Evans criteria:
+n ≥ 3, PRR ≥ 2, χ² ≥ 4) and ROR with 95% CI per (suspect drug,
+MedDRA preferred term) pair, with 0.5 continuity correction. Honest
+small-trial behavior: watch/insufficient-comparator instead of
+manufactured signals. AE seeds span TNX-101 vs Placebo arms so the
+liver cluster screens as a watch (PRR 5.0).
+
+- **Try it:** Safety triage tab → Screen records above. Expect 0
+  signals, a watch list topped by the TNX-101 liver pair, and the
+  basis note.
+- **API:** `POST /api/safety-signals` `{records}`.
+- **Proof:** `SignalTests` ×3 (known-table math, zero-cell, statuses),
+  e2e `signals flag liver cluster as watch`.
+
+### 24. DCT readiness — which visits can go remote, and how
+
+Maps each visit's procedures onto decentralized modalities (eConsent,
+ePRO, local labs, home nursing, wearables, televisit) vs must-stay
+on-site work (dosing, invasive, intensive same-day PK), with a trial
+readiness score. Follows the 2025 DCT adoption pattern.
+
+- **Try it:** Protocol audit tab → scroll to DCT readiness. Expect
+  score 67: Day 1 on-site (PK series), Day 14 via home
+  nursing/local imaging, Day 16 televisit.
+- **API:** `GET /api/dct-readiness/PROT-TNX-001`.
+- **Proof:** `DctTests` ×1, e2e `dct readiness grades visits`.
+
+### 25. Criteria design feedback — grade every rule A/B/C
+
+Rule-based edition of TrialBench's criteria-design task: vague
+qualifiers, bundled multi-rule lines, missing units, and windowless
+therapy statements each cost points, with concrete rewrite
+suggestions per flag.
+
+- **Try it:** Protocol audit tab → scroll to Criteria design. Expect
+  score 64 with INC-04 graded C (vague "adequate" + 3 bundled
+  sub-rules) and fix suggestions.
+- **API:** `GET /api/criteria-feedback/PROT-TNX-001`.
+- **Proof:** `CriteriaTests` ×1, e2e `criteria feedback grades INC-04
+  worst`.
+
 ### Also: snapshot, demo feed, health
 
 - `GET /health` → `{"status": "healthy", "mode": "zero-cost-local"}`.
@@ -516,14 +577,14 @@ Three layers, cheapest first. Counts are for `main`
 (`mvp` runs the 4-agent subset: 20 unit + 12 e2e).
 
 ```bat
-:: Layer 1 — fast offline unit tests (no server): 60 tests (1 CI-only browser skip)
+:: Layer 1 — fast offline unit tests (no server): 69 tests (1 CI-only browser skip)
 python -m unittest discover -s tests
 
 :: Layer 2 — lint + format gate (dev only):
 ruff check backend tests seed_data.py
 ruff format --check backend tests seed_data.py
 
-:: Layer 3 — live problem-statement checks (server running): 39 checks
+:: Layer 3 — live problem-statement checks (server running): 45 checks
 uvicorn backend.app:app --port 8000     :: separate terminal, leave running
 python tests/test_e2e_live.py          :: prints PASS/FAIL per check + FAILURES: 0
 ```
@@ -551,7 +612,7 @@ Manual testing per feature is covered above (each feature's **Try it**);
 
 | Branch | Contents | Tests |
 |---|---|---|
-| `main` | Full product: everything in this README | 60 unit + 39 e2e |
+| `main` | Full product: everything in this README | 69 unit + 45 e2e |
 | `mvp` | Cookbook core: 4 agents, 8 endpoints, 4-tab UI | 20 unit + 12 e2e |
 
 Rules: `main` evolves freely; `mvp` stays lean — never merge `main`
@@ -562,7 +623,7 @@ into it. Shared core fixes travel by checkout from `main`
 
 | Item | Size |
 |---|---|
-| Repo working tree (code + seeds + docs) | ≈ 1 MB |
+| Repo tracked (code + seeds + docs) | ≈ 0.4 MB |
 | SQLite DB after seeding | < 200 KB (generated; git-ignored) |
 | CT.gov + PubMed caches | capped at 200 entries each, oldest forgotten first |
 | Twins / simulations | in-memory only, never written to disk |
@@ -604,7 +665,7 @@ session when the server demands it.
   shows the parsed sub-rules for review.
 - Diversity defaults are illustrative; plug in protocol-specific DAP targets.
 - Twins probe measurement sensitivity only — never efficacy or safety.
-- Outlook is a transparent heuristic until fitted on HINT public data.
+- Outlook/attrition are calibrated bootloaders (disclosed coefficients) until fitted on TrialBench public data.
 - Full n2c2 validation needs a data-use agreement; only the synthetic
   fixture ships.
 - Single shared API token only — no per-user accounts or roles.

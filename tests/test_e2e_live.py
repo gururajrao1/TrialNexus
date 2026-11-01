@@ -255,6 +255,12 @@ def main():
         and "SITE-003" not in mo["alert_site_ids"],
         mo["alert_site_ids"],
     )
+    zb = {s["site_id"]: s["zero_enroll"]["band"] for s in mo["sites"]}
+    check(
+        "zero-enroll risk bands separate sites",
+        zb.get("SITE-002") == "high" and zb.get("SITE-001") == "low",
+        zb,
+    )
 
     # 10. Trial finder
     b004 = [
@@ -430,6 +436,43 @@ def main():
         and isinstance(pb["articles"], list)
         and all("pmid" in art for art in pb["articles"]),
         (pb["source"], pb["count"]),
+    )
+    # 15. R-track: signals, DCT, criteria, attrition, calibrated outlook
+    sg = post("/api/safety-signals", {"records": demo["ae_records"]})
+    liver = [p for p in sg["pairs"] if p["drug"] == "TNX-101" and p["n"] >= 3]
+    check(
+        "signals flag liver cluster as watch",
+        sg["n_drugs"] == 2
+        and len(liver) == 1
+        and liver[0]["status"] == "watch"
+        and liver[0]["prr"] >= 2,
+        (liver[0]["event"], liver[0]["prr"]) if liver else sg["n_drugs"],
+    )
+    dc = json.loads(get("/api/dct-readiness/PROT-TNX-001")[1])
+    check(
+        "dct readiness grades visits",
+        dc["readiness_score"] == 67
+        and dc["total_visits"] == 3
+        and dc["visits"][0]["verdict"] == "on-site",
+        dc["readiness_score"],
+    )
+    cf = json.loads(get("/api/criteria-feedback/PROT-TNX-001")[1])
+    check(
+        "criteria feedback grades INC-04 worst",
+        sum(cf["counts"].values()) == 9
+        and any(w["id"] == "INC-04" and w["grade"] == "C" for w in cf["worst"]),
+        cf["counts"],
+    )
+    at = json.loads(get("/api/attrition/PROT-TNX-001")[1])
+    check(
+        "attrition predicts bounded dropout",
+        5.0 <= at["dropout_pct"] <= 60.0 and len(at["drivers"]) == 4,
+        at["dropout_pct"],
+    )
+    check(
+        "outlook calibrated log-odds drivers",
+        o["success_probability"] == 0.3 and any("log-odds" in d for d in o["drivers"]),
+        o["success_probability"],
     )
     rm = delete("/api/protocols/" + pa["protocol_id"])
     snap2 = json.loads(get("/api/snapshot")[1])

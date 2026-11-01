@@ -63,6 +63,8 @@ export async function runAudit() {
         [["k", "Failure mode"], ["v", "Share"]]) +
       "<ul class='tight'>" + o.drivers.map((d) => "<li>" + esc(d) + "</li>").join("") + "</ul>" +
       "<p class='muted'>" + esc(o.basis) + "</p>";
+    el.innerHTML += await runDct(pid2);
+    el.innerHTML += await runCriteria(pid2);
     $("dlStructure").addEventListener("click", () => {
       const blob = new Blob([JSON.stringify(lastStructure, null, 1)], { type: "application/json" });
       const a = document.createElement("a");
@@ -192,6 +194,7 @@ export async function runRetention() {
     }
     const bundle = demoBundles[parseInt(sel.value || "0", 10)].bundle;
     const r = await postJSON("/api/retention", { protocol_id: "PROT-TNX-001", bundle });
+    const at = await getJSON("/api/attrition/PROT-TNX-001");
     const badge = r.band === "low" ? "b-elig" : (r.band === "moderate" ? "b-review" : "b-inelig");
     el.innerHTML = "<h3>Dropout risk <span class='score'>" + esc(r.score) + "</span> " +
       '<span class="badge ' + badge + '">' + esc(r.band) + "</span></h3>" +
@@ -201,7 +204,12 @@ export async function runRetention() {
       "<p>What-if (" + esc(r.what_if_remote.convertible_visits) + " visits remote): <strong>" +
       esc(r.what_if_remote.score) + " (" + esc(r.what_if_remote.band) + ")</strong>, Δ " +
       esc(r.what_if_remote.delta) + "</p>" +
-      "<p class='muted'>" + esc(r.basis) + "</p>";
+      "<p class='muted'>" + esc(r.basis) + "</p>" +
+      "<h3>Trial attrition</h3>" +
+      "<p>Expected dropout: <strong>" + esc(at.dropout_pct) + "%</strong> " +
+      "<span class='muted'>(" + esc(at.interval_pct.join("–")) + "%)</span></p>" +
+      "<ul class='tight'>" + at.drivers.map((d) => "<li>" + esc(d) + "</li>").join("") + "</ul>" +
+      "<p class='muted'>" + esc(at.basis) + "</p>";
   } catch (err) { fail(el, err); }
 }
 
@@ -243,6 +251,51 @@ export async function runPubmed() {
         (a.year ? ", " + esc(a.year) : "") + ")</span></li>").join("") + "</ul>"
         : "<p class='muted'>No articles (offline or no match).</p>");
   } catch (err) { fail(el, err); }
+}
+
+export async function runSignals() {
+  const el = $("signalsResult");
+  try {
+    const records = JSON.parse($("aeJson").value);
+    const r = await postJSON("/api/safety-signals", { records });
+    el.innerHTML = "<h3>" + esc(r.signals.length) + " signals, " + esc(r.watch.length) +
+      " watch <span class='muted'>(" + esc(r.n_records) + " records, " +
+      esc(r.n_drugs) + " drugs)</span></h3>" +
+      (r.pairs.length ? table(r.pairs.map((p) => ({
+        pair: p.drug + " × " + p.event, n: p.n, prr: p.prr, chi2: p.chi2,
+        ror: p.ror + " [" + p.ror_ci.join(", ") + "]", status: p.status,
+      })), [["pair", "Drug × Event"], ["n", "n"], ["prr", "PRR"], ["chi2", "χ²"],
+        ["ror", "ROR [95% CI]"], ["status", "Status"]])
+        : "<p class='muted'>No drug-event pairs.</p>") +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runDct(pid) {
+  const d = await getJSON("/api/dct-readiness/" + encodeURIComponent(pid));
+  return "<h3>DCT readiness <span class='score'>" + esc(d.readiness_score) + "</span></h3>" +
+    "<p>" + esc(d.remote_capable_n) + "/" + esc(d.total_visits) + " visits remote-capable" +
+    (d.econsent_mentioned ? " — eConsent mentioned" : " — no eConsent mention") + "</p>" +
+    table(d.visits.map((v) => ({ day: "Day " + v.day,
+      procedures: v.procedures.join(", ") || "routine visit",
+      modalities: v.modalities.join(", "), verdict: v.verdict })),
+      [["day", "Visit"], ["procedures", "Procedures"], ["modalities", "DCT modalities"],
+       ["verdict", "Verdict"]]) +
+    "<p class='muted'>" + esc(d.basis) + "</p>";
+}
+
+export async function runCriteria(pid) {
+  const f = await getJSON("/api/criteria-feedback/" + encodeURIComponent(pid));
+  const chip = (g) => g === "A" ? "b-elig" : (g === "B" ? "b-review" : "b-inelig");
+  return "<h3>Criteria design <span class='score'>" + esc(f.design_score) + "</span></h3>" +
+    "<p>Grades — A: " + esc(f.counts.A) + ", B: " + esc(f.counts.B) +
+    ", C: " + esc(f.counts.C) + "</p>" +
+    (f.worst.length ? "<ul class='tight'>" + f.worst.map((w) =>
+      "<li><strong>" + esc(w.id) + "</strong> " +
+      '<span class="badge ' + chip(w.grade) + '">' + esc(w.grade) + "</span> " +
+      w.flags.map((x) => esc(x.issue) + " → " + esc(x.suggestion)).join("; ") + "</li>"
+    ).join("") + "</ul>" : "<p>All criteria machine-readable as written.</p>") +
+    "<p class='muted'>" + esc(f.basis) + "</p>";
 }
 
 export async function runOutcomes() {
