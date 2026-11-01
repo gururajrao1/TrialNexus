@@ -44,7 +44,9 @@ class PixelTests(unittest.TestCase):
             # Cohort tab renders verdicts, not a blank panel (detail
             # tables are collapsed by design: attached, not visible).
             page.click("#tabbtn-cohort")
-            page.wait_for_selector("#cohortResult table", timeout=30000, state="attached")
+            page.wait_for_selector(
+                "#cohortResult table", timeout=30000, state="attached"
+            )
             page.wait_for_selector("#cohortResult .badge", timeout=30000)
             shot_dir = os.environ.get("RUNNER_TEMP") or tempfile.gettempdir()
             shot = os.path.join(shot_dir, "pixel_proof.png")
