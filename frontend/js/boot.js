@@ -28,12 +28,62 @@ import { runMcode, runTwins, runValidity } from "./panels-tier.js";
 const TABS = ["audit", "sites", "cohort", "safety", "diversity", "history", "startup",
   "monitoring", "finder", "external", "twins", "mcode", "validity"];
 
-/* Tabs */
+/* Tabs (sidebar buttons + deep links) */
 const tabBtns = TABS.map((n) => $("tabbtn-" + n));
-tabBtns.forEach((btn) => btn.addEventListener("click", () => {
-  tabBtns.forEach((b) => b.setAttribute("aria-selected", b === btn ? "true" : "false"));
-  TABS.forEach((n) => { $("tab-" + n).hidden = ("tabbtn-" + n) !== btn.id; });
-}));
+function showTab(name, push) {
+  if (!TABS.includes(name)) return;
+  const id = "tabbtn-" + name;
+  tabBtns.forEach((b) => b.setAttribute("aria-selected", b.id === id ? "true" : "false"));
+  TABS.forEach((n) => { $("tab-" + n).hidden = n !== name; });
+  try {
+    if (push !== false && typeof location !== "undefined" && location.hash !== "#/" + name) {
+      location.hash = "#/" + name;
+    }
+    if (typeof sessionStorage !== "undefined") sessionStorage.setItem("tnx_tab", name);
+  } catch (e) { /* private mode or stub DOM: selection still applies */ }
+}
+function initialTab() {
+  try {
+    if (typeof location !== "undefined" && location.hash) {
+      const h = location.hash.replace(/^#\/?/, "");
+      if (TABS.includes(h)) return h;
+    }
+    if (typeof sessionStorage !== "undefined") {
+      const s = sessionStorage.getItem("tnx_tab");
+      if (TABS.includes(s)) return s;
+    }
+  } catch (e) { /* fall through to default */ }
+  return "audit";
+}
+tabBtns.forEach((btn) => btn.addEventListener("click", () => showTab(btn.id.replace("tabbtn-", ""))));
+
+/* Cross-panel links: any [data-goto] switches to that tab. */
+if (typeof document !== "undefined" && document.addEventListener) {
+  document.addEventListener("click", (e) => {
+    const t = e.target && e.target.closest ? e.target.closest("[data-goto]") : null;
+    if (t) showTab(t.getAttribute("data-goto"));
+  });
+}
+
+/* Global protocol field: one value shared by every panel. */
+const PID_FIELDS = ["auditPid", "cohortPid", "safetyPid", "historyPid"];
+function readStoredPid() {
+  try {
+    if (typeof localStorage !== "undefined") return localStorage.getItem("tnx_pid") || "";
+  } catch (e) { /* storage unavailable */ }
+  return "";
+}
+function applyPid(pid, save) {
+  for (const id of PID_FIELDS) {
+    const el = $(id);
+    if (el) el.value = pid;
+  }
+  const g = $("globalPid");
+  if (g && g.value !== pid) g.value = pid;
+  try {
+    if (save && typeof localStorage !== "undefined") localStorage.setItem("tnx_pid", pid);
+  } catch (e) { /* storage unavailable */ }
+}
 
 /* Snapshot + health */
 async function loadSnapshot() {
@@ -84,6 +134,16 @@ $("pubmedForm").addEventListener("submit", (e) => { e.preventDefault(); runPubme
 $("signalForm").addEventListener("submit", (e) => { e.preventDefault(); runSignals(); });
 
 /* Boot: snapshot, prefill, then auto-run all thirteen panels. */
+showTab(initialTab(), false);
+const g0 = $("globalPid");
+if (g0) {
+  const startPid = readStoredPid() || g0.value;
+  if (startPid) applyPid(startPid, false);
+  g0.addEventListener("input", (e) => {
+    const v = e.target.value.trim();
+    if (v) applyPid(v, true);
+  });
+}
 loadSnapshot().then(loadDemo).then(loadDiversityDefaults).then(() => {
   runAudit(); runSites(); runDiversity(); runStartup(); runMonitoring(); runFinder(); runExternal();
   runTwins(); runMcode(); runValidity(); runSweep(); runRetention();

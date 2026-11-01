@@ -74,6 +74,9 @@ export async function runAudit() {
     el.innerHTML += critHtml;
     el.innerHTML += adaptHtml;
     el.innerHTML += consentHtml;
+    el.innerHTML += "<div class='goto-row'><button data-goto='sites'>Score sites for " +
+      esc(pid2) + "</button><button data-goto='cohort'>Match cohort for " + esc(pid2) +
+      "</button><button data-goto='safety'>Triage safety for " + esc(pid2) + "</button></div>";
     $("dlStructure").addEventListener("click", () => {
       const blob = new Blob([JSON.stringify(lastStructure, null, 1)], { type: "application/json" });
       const a = document.createElement("a");

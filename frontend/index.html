@@ -7,198 +7,219 @@
 <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-<header class="site-header">
-  <div class="wrap header-row">
-    <div>
-      <h1>TrialNexus OS</h1>
-      <p class="subtitle">Clinical trials intelligence — protocol, sites, cohort, safety</p>
+<div class="shell">
+  <aside class="side">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">TN</span>
+      <div>
+        <p class="brand-name">TrialNexus OS</p>
+        <p class="brand-sub">Trials intelligence</p>
+      </div>
     </div>
-    <div class="header-right">
-      <span id="apiStatus" class="pill">checking…</span>
-      <a class="docs-link" href="/docs">API docs</a>
+    <div class="proto">
+      <label for="globalPid">Protocol</label>
+      <input id="globalPid" value="PROT-TNX-001" size="16" spellcheck="false">
+      <p class="proto-note">Applies to every panel below.</p>
     </div>
+    <nav class="nav" aria-label="Workflows">
+      <p class="nav-group">Protocol</p>
+      <button id="tabbtn-audit" aria-controls="tab-audit" aria-selected="true"><span class="nav-n">01</span>Protocol audit</button>
+      <button id="tabbtn-diversity" aria-controls="tab-diversity" aria-selected="false"><span class="nav-n">02</span>Diversity plan</button>
+      <button id="tabbtn-validity" aria-controls="tab-validity" aria-selected="false"><span class="nav-n">03</span>Model validity</button>
+      <p class="nav-group">Sites</p>
+      <button id="tabbtn-sites" aria-controls="tab-sites" aria-selected="false"><span class="nav-n">04</span>Site feasibility</button>
+      <button id="tabbtn-startup" aria-controls="tab-startup" aria-selected="false"><span class="nav-n">05</span>Study startup</button>
+      <button id="tabbtn-monitoring" aria-controls="tab-monitoring" aria-selected="false"><span class="nav-n">06</span>Monitoring</button>
+      <p class="nav-group">Patients</p>
+      <button id="tabbtn-cohort" aria-controls="tab-cohort" aria-selected="false"><span class="nav-n">07</span>Cohort matching</button>
+      <button id="tabbtn-finder" aria-controls="tab-finder" aria-selected="false"><span class="nav-n">08</span>Find trials</button>
+      <button id="tabbtn-external" aria-controls="tab-external" aria-selected="false"><span class="nav-n">09</span>External control</button>
+      <button id="tabbtn-twins" aria-controls="tab-twins" aria-selected="false"><span class="nav-n">10</span>Synthetic twins</button>
+      <button id="tabbtn-mcode" aria-controls="tab-mcode" aria-selected="false"><span class="nav-n">11</span>mCODE summary</button>
+      <p class="nav-group">Safety</p>
+      <button id="tabbtn-safety" aria-controls="tab-safety" aria-selected="false"><span class="nav-n">12</span>Safety triage</button>
+      <p class="nav-group">Record</p>
+      <button id="tabbtn-history" aria-controls="tab-history" aria-selected="false"><span class="nav-n">13</span>History &amp; export</button>
+    </nav>
+    <p class="side-foot">Local build — no paid APIs.</p>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <ol class="stepper" aria-label="Trial workflow">
+        <li><button data-goto="audit"><span class="step-n">1</span> Audit protocol</button></li>
+        <li><button data-goto="sites"><span class="step-n">2</span> Score sites</button></li>
+        <li><button data-goto="cohort"><span class="step-n">3</span> Match cohort</button></li>
+        <li><button data-goto="safety"><span class="step-n">4</span> Triage safety</button></li>
+      </ol>
+      <div class="topbar-right">
+        <span id="apiStatus" class="pill">checking…</span>
+        <a class="docs-link" href="/docs">API docs</a>
+      </div>
+    </header>
+    <main class="content">
+      <section aria-label="Trial snapshot">
+        <div class="snap-head">
+          <h2>Trial snapshot</h2>
+          <p class="muted snap-sub">Seeded demo: NSCLC protocol, 2 sites, 2 FHIR patients, 4 safety records.</p>
+        </div>
+        <div id="snapshot" class="metrics"><p class="muted">Loading…</p></div>
+      </section>
+      <section id="tab-audit" aria-labelledby="tabbtn-audit">
+        <form id="auditForm" class="controls">
+          <label>Protocol ID <input id="auditPid" value="PROT-TNX-001" size="16"></label>
+          <button type="submit">Run audit</button>
+        </form>
+        <form id="pdfForm" class="controls">
+          <label>Protocol PDF <input id="pdfFile" type="file" accept=".pdf,application/pdf"></label>
+          <button type="submit">Audit PDF</button>
+        </form>
+        <div id="auditResult" class="results"><p class="muted">Running…</p></div>
+        <h3>Outcome benchmark (live registry)</h3>
+        <form id="outcomesForm" class="controls">
+          <label>Condition <input id="outcomesCondition" value="Non-Small Cell Lung Cancer" size="28"></label>
+          <label>Phase <input id="outcomesPhase" value="PHASE3" size="10"></label>
+          <button type="submit">Fetch benchmark</button>
+        </form>
+        <div id="outcomesResult" class="results"><p class="muted">Not fetched yet — opt-in live lookup.</p></div>
+      </section>
+      <section id="tab-sites" aria-labelledby="tabbtn-sites" hidden>
+        <form id="sitesForm" class="controls">
+          <label class="grow">Candidate sites (JSON list)
+            <textarea id="sitesJson" rows="12" spellcheck="false"></textarea>
+          </label>
+          <label>Target enrollment <input id="siteTarget" type="number" value="450" min="0"></label>
+          <label>Condition (live lookup) <input id="siteCondition" value="Non-Small Cell Lung Cancer" size="28"></label>
+          <label class="check"><input id="siteLive" type="checkbox"> Use live CT.gov counts</label>
+          <button type="submit">Score sites</button>
+        </form>
+        <div id="sitesResult" class="results"><p class="muted">Running…</p></div>
+      </section>
+      <section id="tab-cohort" aria-labelledby="tabbtn-cohort" hidden>
+        <form id="cohortForm" class="controls">
+          <label>Protocol ID <input id="cohortPid" value="PROT-TNX-001" size="16"></label>
+          <fieldset class="grow"><legend>FHIR bundles</legend><div id="bundleList"></div></fieldset>
+          <button type="submit">Match cohort</button>
+        </form>
+        <div id="cohortResult" class="results"><p class="muted">Running…</p></div>
+        <h3>Relaxation sweep</h3>
+        <form id="sweepForm" class="controls">
+          <label>Seed bundle <select id="sweepSeed"></select></label>
+          <label>Twins <input id="sweepN" type="number" value="50" min="10" max="500"></label>
+          <button type="submit">Run sweep</button>
+        </form>
+        <p class="muted">Eligible-n elasticity per threshold, over an in-memory twin cohort.</p>
+        <div id="sweepResult" class="results"><p class="muted">Running…</p></div>
+        <h3>Retention risk</h3>
+        <form id="retentionForm" class="controls">
+          <label>Patient bundle <select id="retentionBundle"></select></label>
+          <button type="submit">Score retention</button>
+        </form>
+        <div id="retentionResult" class="results"><p class="muted">Running…</p></div>
+      </section>
+      <section id="tab-safety" aria-labelledby="tabbtn-safety" hidden>
+        <form id="safetyForm" class="controls">
+          <label class="grow">Adverse event / discrepancy records (JSON list)
+            <textarea id="aeJson" rows="12" spellcheck="false"></textarea>
+          </label>
+          <label>Protocol ID <input id="safetyPid" value="PROT-TNX-001" size="16"></label>
+          <button type="submit">Triage</button>
+        </form>
+        <div id="safetyResult" class="results"><p class="muted">Running…</p></div>
+        <h3>Literature (PubMed)</h3>
+        <form id="pubmedForm" class="controls">
+          <label>Term <input id="pubmedTerm" value="EGFR inhibitor hepatotoxicity" size="32"></label>
+          <button type="submit">Search</button>
+        </form>
+        <div id="pubmedResult" class="results"><p class="muted">Not searched yet — opt-in live lookup.</p></div>
+        <h3>Signal detection (ROR/PRR)</h3>
+        <form id="signalForm" class="controls">
+          <button type="submit">Screen records above</button>
+        </form>
+        <div id="signalsResult" class="results"><p class="muted">Not screened yet.</p></div>
+      </section>
+      <section id="tab-diversity" aria-labelledby="tabbtn-diversity" hidden>
+        <form id="diversityForm" class="controls">
+          <label class="grow">Enrollment goals by group (JSON, %)
+            <textarea id="diversityTargets" rows="10" spellcheck="false"></textarea>
+          </label>
+          <button type="submit">Plan diversity</button>
+        </form>
+        <p class="muted">Uses the bundles ticked in Cohort matching (or all demo bundles if none).</p>
+        <div id="diversityResult" class="results"><p class="muted">Running…</p></div>
+      </section>
+      <section id="tab-history" aria-labelledby="tabbtn-history" hidden>
+        <form id="historyForm" class="controls">
+          <label>Protocol ID <input id="historyPid" value="PROT-TNX-001" size="16"></label>
+          <button type="submit">Refresh history</button>
+          <span id="exportLinks" class="muted"></span>
+        </form>
+        <div id="historyResult" class="results"><p class="muted">Running…</p></div>
+        <h3>Screen-failure forensics</h3>
+        <div id="forensicResult" class="results"><p class="muted">Running…</p></div>
+      </section>
+      <section id="tab-startup" aria-labelledby="tabbtn-startup" hidden>
+        <form id="startupForm" class="controls">
+          <label>Site <select id="startupSite"></select></label>
+          <label>Move to stage <select id="startupStage">
+            <option>identified</option><option>feasibility</option><option>contract</option>
+            <option>irb</option><option>activated</option><option>fpi</option>
+          </select></label>
+          <label>Note <input id="startupNote" size="30" placeholder="optional"></label>
+          <button type="submit">Advance site</button>
+        </form>
+        <div id="startupResult" class="results"><p class="muted">Running…</p></div>
+      </section>
+      <section id="tab-monitoring" aria-labelledby="tabbtn-monitoring" hidden>
+        <form id="monitoringForm" class="controls">
+          <p class="muted">Central KRIs recompute from monthly site metrics on each load.</p>
+          <button type="submit">Refresh KRIs</button>
+        </form>
+        <div id="monitoringResult" class="results"><p class="muted">Running…</p></div>
+      </section>
+      <section id="tab-finder" aria-labelledby="tabbtn-finder" hidden>
+        <form id="finderForm" class="controls">
+          <label>Patient bundle <select id="finderBundle"></select></label>
+          <button type="submit">Find trials</button>
+        </form>
+        <div id="finderResult" class="results"><p class="muted">Running…</p></div>
+      </section>
+      <section id="tab-external" aria-labelledby="tabbtn-external" hidden>
+        <form id="externalForm" class="controls">
+          <label>Relax criteria (comma-separated IDs) <input id="relaxIds" value="INC-04, EXC-01" size="24"></label>
+          <button type="submit">Build control pool</button>
+        </form>
+        <p class="muted">Pool is built from all demo FHIR bundles against PROT-TNX-001 with the listed criteria set aside.</p>
+        <div id="externalResult" class="results"><p class="muted">Running…</p></div>
+      </section>
+      <section id="tab-twins" aria-labelledby="tabbtn-twins" hidden>
+        <form id="twinsForm" class="controls">
+          <label>Patient bundle <select id="twinsBundle"></select></label>
+          <label>Twins <input id="twinsN" type="number" value="100" min="10" max="500"></label>
+          <button type="submit">Generate twins</button>
+        </form>
+        <p class="muted">In-memory synthetic cohort from the seed patient against PROT-TNX-001 — nothing is stored.</p>
+        <div id="twinsResult" class="results"><p class="muted">Running…</p></div>
+      </section>
+      <section id="tab-mcode" aria-labelledby="tabbtn-mcode" hidden>
+        <form id="mcodeForm" class="controls">
+          <label>Patient bundle <select id="mcodeBundle"></select></label>
+          <button type="submit">Summarize</button>
+        </form>
+        <div id="mcodeResult" class="results"><p class="muted">Running…</p></div>
+      </section>
+      <section id="tab-validity" aria-labelledby="tabbtn-validity" hidden>
+        <form id="validityForm" class="controls">
+          <p class="muted">Independent benchmark of the matcher on the n2c2 2018 cohort-selection fixture (13 criteria).</p>
+          <button type="submit">Refresh benchmark</button>
+        </form>
+        <div id="validityResult" class="results"><p class="muted">Running…</p></div>
+      </section>
+      <footer class="foot">
+        <p>TrialNexus OS — deterministic clinical-trials workspace. All analysis runs locally; nothing leaves this machine.</p>
+      </footer>
+    </main>
   </div>
-</header>
-<main class="wrap">
-  <ol class="stepper" aria-label="Trial workflow">
-    <li><span class="step-n">1</span> Audit protocol</li>
-    <li><span class="step-n">2</span> Score sites</li>
-    <li><span class="step-n">3</span> Match cohort</li>
-    <li><span class="step-n">4</span> Triage safety</li>
-  </ol>
-  <section aria-label="Trial snapshot">
-    <h2>Trial snapshot</h2>
-    <div id="snapshot" class="metrics"><p class="muted">Loading…</p></div>
-  </section>
-  <nav class="tabs" aria-label="Workflows">
-    <button id="tabbtn-audit" aria-controls="tab-audit" aria-selected="true">Protocol audit</button>
-    <button id="tabbtn-sites" aria-controls="tab-sites" aria-selected="false">Site feasibility</button>
-    <button id="tabbtn-cohort" aria-controls="tab-cohort" aria-selected="false">Cohort matching</button>
-    <button id="tabbtn-safety" aria-controls="tab-safety" aria-selected="false">Safety triage</button>
-    <button id="tabbtn-diversity" aria-controls="tab-diversity" aria-selected="false">Diversity plan</button>
-    <button id="tabbtn-history" aria-controls="tab-history" aria-selected="false">History &amp; export</button>
-    <button id="tabbtn-startup" aria-controls="tab-startup" aria-selected="false">Study startup</button>
-    <button id="tabbtn-monitoring" aria-controls="tab-monitoring" aria-selected="false">Monitoring</button>
-    <button id="tabbtn-finder" aria-controls="tab-finder" aria-selected="false">Find trials</button>
-    <button id="tabbtn-external" aria-controls="tab-external" aria-selected="false">External control</button>
-    <button id="tabbtn-twins" aria-controls="tab-twins" aria-selected="false">Synthetic twins</button>
-    <button id="tabbtn-mcode" aria-controls="tab-mcode" aria-selected="false">mCODE summary</button>
-    <button id="tabbtn-validity" aria-controls="tab-validity" aria-selected="false">Model validity</button>
-  </nav>
-  <section id="tab-audit" aria-labelledby="tabbtn-audit">
-    <form id="auditForm" class="controls">
-      <label>Protocol ID <input id="auditPid" value="PROT-TNX-001" size="16"></label>
-      <button type="submit">Run audit</button>
-    </form>
-    <form id="pdfForm" class="controls">
-      <label>Protocol PDF <input id="pdfFile" type="file" accept=".pdf,application/pdf"></label>
-      <button type="submit">Audit PDF</button>
-    </form>
-    <div id="auditResult" class="results"><p class="muted">Running…</p></div>
-    <h3>Outcome benchmark (live registry)</h3>
-    <form id="outcomesForm" class="controls">
-      <label>Condition <input id="outcomesCondition" value="Non-Small Cell Lung Cancer" size="28"></label>
-      <label>Phase <input id="outcomesPhase" value="PHASE3" size="10"></label>
-      <button type="submit">Fetch benchmark</button>
-    </form>
-    <div id="outcomesResult" class="results"><p class="muted">Not fetched yet — opt-in live lookup.</p></div>
-  </section>
-  <section id="tab-sites" aria-labelledby="tabbtn-sites" hidden>
-    <form id="sitesForm" class="controls">
-      <label class="grow">Candidate sites (JSON list)
-        <textarea id="sitesJson" rows="12" spellcheck="false"></textarea>
-      </label>
-      <label>Target enrollment <input id="siteTarget" type="number" value="450" min="0"></label>
-      <label>Condition (live lookup) <input id="siteCondition" value="Non-Small Cell Lung Cancer" size="28"></label>
-      <label class="check"><input id="siteLive" type="checkbox"> Use live CT.gov counts</label>
-      <button type="submit">Score sites</button>
-    </form>
-    <div id="sitesResult" class="results"><p class="muted">Running…</p></div>
-  </section>
-  <section id="tab-cohort" aria-labelledby="tabbtn-cohort" hidden>
-    <form id="cohortForm" class="controls">
-      <label>Protocol ID <input id="cohortPid" value="PROT-TNX-001" size="16"></label>
-      <fieldset class="grow"><legend>FHIR bundles</legend><div id="bundleList"></div></fieldset>
-      <button type="submit">Match cohort</button>
-    </form>
-    <div id="cohortResult" class="results"><p class="muted">Running…</p></div>
-    <h3>Relaxation sweep</h3>
-    <form id="sweepForm" class="controls">
-      <label>Seed bundle <select id="sweepSeed"></select></label>
-      <label>Twins <input id="sweepN" type="number" value="50" min="10" max="500"></label>
-      <button type="submit">Run sweep</button>
-    </form>
-    <p class="muted">Eligible-n elasticity per threshold, over an in-memory twin cohort.</p>
-    <div id="sweepResult" class="results"><p class="muted">Running…</p></div>
-    <h3>Retention risk</h3>
-    <form id="retentionForm" class="controls">
-      <label>Patient bundle <select id="retentionBundle"></select></label>
-      <button type="submit">Score retention</button>
-    </form>
-    <div id="retentionResult" class="results"><p class="muted">Running…</p></div>
-  </section>
-  <section id="tab-safety" aria-labelledby="tabbtn-safety" hidden>
-    <form id="safetyForm" class="controls">
-      <label class="grow">Adverse event / discrepancy records (JSON list)
-        <textarea id="aeJson" rows="12" spellcheck="false"></textarea>
-      </label>
-      <label>Protocol ID <input id="safetyPid" value="PROT-TNX-001" size="16"></label>
-      <button type="submit">Triage</button>
-    </form>
-    <div id="safetyResult" class="results"><p class="muted">Running…</p></div>
-    <h3>Literature (PubMed)</h3>
-    <form id="pubmedForm" class="controls">
-      <label>Term <input id="pubmedTerm" value="EGFR inhibitor hepatotoxicity" size="32"></label>
-      <button type="submit">Search</button>
-    </form>
-    <div id="pubmedResult" class="results"><p class="muted">Not searched yet — opt-in live lookup.</p></div>
-    <h3>Signal detection (ROR/PRR)</h3>
-    <form id="signalForm" class="controls">
-      <button type="submit">Screen records above</button>
-    </form>
-    <div id="signalsResult" class="results"><p class="muted">Not screened yet.</p></div>
-  </section>
-  <section id="tab-diversity" aria-labelledby="tabbtn-diversity" hidden>
-    <form id="diversityForm" class="controls">
-      <label class="grow">Enrollment goals by group (JSON, %)
-        <textarea id="diversityTargets" rows="10" spellcheck="false"></textarea>
-      </label>
-      <button type="submit">Plan diversity</button>
-    </form>
-    <p class="muted">Uses the bundles ticked in Cohort matching (or all demo bundles if none).</p>
-    <div id="diversityResult" class="results"><p class="muted">Running…</p></div>
-  </section>
-  <section id="tab-history" aria-labelledby="tabbtn-history" hidden>
-    <form id="historyForm" class="controls">
-      <label>Protocol ID <input id="historyPid" value="PROT-TNX-001" size="16"></label>
-      <button type="submit">Refresh history</button>
-      <span id="exportLinks" class="muted"></span>
-    </form>
-    <div id="historyResult" class="results"><p class="muted">Running…</p></div>
-    <h3>Screen-failure forensics</h3>
-    <div id="forensicResult" class="results"><p class="muted">Running…</p></div>
-  </section>
-  <section id="tab-startup" aria-labelledby="tabbtn-startup" hidden>
-    <form id="startupForm" class="controls">
-      <label>Site <select id="startupSite"></select></label>
-      <label>Move to stage <select id="startupStage">
-        <option>identified</option><option>feasibility</option><option>contract</option>
-        <option>irb</option><option>activated</option><option>fpi</option>
-      </select></label>
-      <label>Note <input id="startupNote" size="30" placeholder="optional"></label>
-      <button type="submit">Advance site</button>
-    </form>
-    <div id="startupResult" class="results"><p class="muted">Running…</p></div>
-  </section>
-  <section id="tab-monitoring" aria-labelledby="tabbtn-monitoring" hidden>
-    <form id="monitoringForm" class="controls">
-      <p class="muted">Central KRIs recompute from monthly site metrics on each load.</p>
-      <button type="submit">Refresh KRIs</button>
-    </form>
-    <div id="monitoringResult" class="results"><p class="muted">Running…</p></div>
-  </section>
-  <section id="tab-finder" aria-labelledby="tabbtn-finder" hidden>
-    <form id="finderForm" class="controls">
-      <label>Patient bundle <select id="finderBundle"></select></label>
-      <button type="submit">Find trials</button>
-    </form>
-    <div id="finderResult" class="results"><p class="muted">Running…</p></div>
-  </section>
-  <section id="tab-external" aria-labelledby="tabbtn-external" hidden>
-    <form id="externalForm" class="controls">
-      <label>Relax criteria (comma-separated IDs) <input id="relaxIds" value="INC-04, EXC-01" size="24"></label>
-      <button type="submit">Build control pool</button>
-    </form>
-    <p class="muted">Pool is built from all demo FHIR bundles against PROT-TNX-001 with the listed criteria set aside.</p>
-    <div id="externalResult" class="results"><p class="muted">Running…</p></div>
-  </section>
-  <section id="tab-twins" aria-labelledby="tabbtn-twins" hidden>
-    <form id="twinsForm" class="controls">
-      <label>Patient bundle <select id="twinsBundle"></select></label>
-      <label>Twins <input id="twinsN" type="number" value="100" min="10" max="500"></label>
-      <button type="submit">Generate twins</button>
-    </form>
-    <p class="muted">In-memory synthetic cohort from the seed patient against PROT-TNX-001 — nothing is stored.</p>
-    <div id="twinsResult" class="results"><p class="muted">Running…</p></div>
-  </section>
-  <section id="tab-mcode" aria-labelledby="tabbtn-mcode" hidden>
-    <form id="mcodeForm" class="controls">
-      <label>Patient bundle <select id="mcodeBundle"></select></label>
-      <button type="submit">Summarize</button>
-    </form>
-    <div id="mcodeResult" class="results"><p class="muted">Running…</p></div>
-  </section>
-  <section id="tab-validity" aria-labelledby="tabbtn-validity" hidden>
-    <form id="validityForm" class="controls">
-      <p class="muted">Independent benchmark of the matcher on the n2c2 2018 cohort-selection fixture (13 criteria).</p>
-      <button type="submit">Refresh benchmark</button>
-    </form>
-    <div id="validityResult" class="results"><p class="muted">Running…</p></div>
-  </section>
-</main>
-<footer class="wrap foot">
-  <p>Local deterministic build — no paid APIs. Seeded demo: NSCLC protocol, 2 sites, 2 FHIR patients, 4 safety records.</p>
-</footer>
+</div>
 <script type="module" src="/static/app.js"></script>
 </body>
 </html>
