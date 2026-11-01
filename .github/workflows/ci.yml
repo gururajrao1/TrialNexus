@@ -44,11 +44,17 @@ jobs:
       - name: Frontend smoke (skips on branches without JS modules)
         run: |
           if [ -f frontend/js/boot.js ]; then node tests/test_ui_smoke.mjs; else echo "no JS modules on this branch"; fi
-      - name: Browser pixel check (main UI only)
+      - name: Install Chromium
         run: |
           if [ ! -f frontend/js/boot.js ]; then echo "no full UI on this branch"; exit 0; fi
           python -m playwright install chromium
+      - name: Install browser system deps
+        run: |
+          if [ ! -f frontend/js/boot.js ]; then echo "no full UI on this branch"; exit 0; fi
           sudo python -m playwright install-deps chromium
+      - name: Browser pixel check (main UI only)
+        run: |
+          if [ ! -f frontend/js/boot.js ]; then echo "no full UI on this branch"; exit 0; fi
           python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000 &
           SERVER_PID=$!
           for i in $(seq 1 30); do
