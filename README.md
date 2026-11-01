@@ -539,6 +539,7 @@ Local pixel run (no download when reusing a system browser):
 
 ```bat
 pip install -r requirements-dev.txt
+set TRIALNEXUS_BROWSER_TEST=1
 set PLAYWRIGHT_CHANNEL=msedge   &:: or chrome
 python -m unittest tests.test_ui_pixel -v
 ```

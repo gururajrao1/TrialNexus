@@ -21,8 +21,13 @@ try:
 except ImportError:
     sync_playwright = None
 
+GATED = (
+    sync_playwright is None
+    or os.environ.get("TRIALNEXUS_BROWSER_TEST") != "1"
+)
 
-@unittest.skipIf(sync_playwright is None, "playwright not installed (CI-only)")
+
+@unittest.skipIf(GATED, "browser-gated (CI pixel job sets TRIALNEXUS_BROWSER_TEST=1)")
 class PixelTests(unittest.TestCase):
     def test_app_renders_in_chromium(self):
         errors = []

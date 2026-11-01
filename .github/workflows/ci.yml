@@ -45,12 +45,11 @@ jobs:
       - name: Browser pixel check (main UI only)
         run: |
           if [ ! -f frontend/js/boot.js ]; then echo "no full UI on this branch"; exit 0; fi
-          pip install playwright
           python -m playwright install chromium
           sudo python -m playwright install-deps chromium
           python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000 &
           SERVER_PID=$!
-          python -m unittest tests.test_ui_pixel -v
+          TRIALNEXUS_BROWSER_TEST=1 python -m unittest tests.test_ui_pixel -v
           STATUS=$?
           kill $SERVER_PID
           exit $STATUS
