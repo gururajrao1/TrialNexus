@@ -53,9 +53,15 @@ jobs:
             curl -sf http://127.0.0.1:8000/health && break
             sleep 2
           done
-          TRIALNEXUS_BROWSER_TEST=1 python -m unittest tests.test_ui_pixel -v
+          set +e
+          TRIALNEXUS_BROWSER_TEST=1 python -m unittest tests.test_ui_pixel -v > /tmp/pixel.log 2>&1
           STATUS=$?
+          set -e
+          cat /tmp/pixel.log
           kill $SERVER_PID
+          if [ $STATUS -ne 0 ]; then
+            echo "::error::pixel-failed::$(tail -c 2500 /tmp/pixel.log | tr '\n' ' ')"
+          fi
           exit $STATUS
       - name: Upload pixel proof
         if: always()
