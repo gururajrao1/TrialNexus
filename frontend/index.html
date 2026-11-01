@@ -51,6 +51,13 @@
       <button type="submit">Run audit</button>
     </form>
     <div id="auditResult" class="results"><p class="muted">Running…</p></div>
+    <h3>Outcome benchmark (live registry)</h3>
+    <form id="outcomesForm" class="controls">
+      <label>Condition <input id="outcomesCondition" value="Non-Small Cell Lung Cancer" size="28"></label>
+      <label>Phase <input id="outcomesPhase" value="PHASE3" size="10"></label>
+      <button type="submit">Fetch benchmark</button>
+    </form>
+    <div id="outcomesResult" class="results"><p class="muted">Not fetched yet — opt-in live lookup.</p></div>
   </section>
   <section id="tab-sites" aria-labelledby="tabbtn-sites" hidden>
     <form id="sitesForm" class="controls">
@@ -71,6 +78,20 @@
       <button type="submit">Match cohort</button>
     </form>
     <div id="cohortResult" class="results"><p class="muted">Running…</p></div>
+    <h3>Relaxation sweep</h3>
+    <form id="sweepForm" class="controls">
+      <label>Seed bundle <select id="sweepSeed"></select></label>
+      <label>Twins <input id="sweepN" type="number" value="200" min="10" max="500"></label>
+      <button type="submit">Run sweep</button>
+    </form>
+    <p class="muted">Eligible-n elasticity per threshold, over an in-memory twin cohort.</p>
+    <div id="sweepResult" class="results"><p class="muted">Running…</p></div>
+    <h3>Retention risk</h3>
+    <form id="retentionForm" class="controls">
+      <label>Patient bundle <select id="retentionBundle"></select></label>
+      <button type="submit">Score retention</button>
+    </form>
+    <div id="retentionResult" class="results"><p class="muted">Running…</p></div>
   </section>
   <section id="tab-safety" aria-labelledby="tabbtn-safety" hidden>
     <form id="safetyForm" class="controls">
@@ -99,6 +120,8 @@
       <span id="exportLinks" class="muted"></span>
     </form>
     <div id="historyResult" class="results"><p class="muted">Running…</p></div>
+    <h3>Screen-failure forensics</h3>
+    <div id="forensicResult" class="results"><p class="muted">Running…</p></div>
   </section>
   <section id="tab-startup" aria-labelledby="tabbtn-startup" hidden>
     <form id="startupForm" class="controls">

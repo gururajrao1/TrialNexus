@@ -10,14 +10,20 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.agents.burden_scorer import score_burden
-from backend.agents.enrollment_forecast import forecast
+from backend.agents.enrollment_forecast import forecast, site_priors_from_metrics
 from backend.agents.mcode import mcode_profile
 from backend.agents.n2c2_harness import CRITERIA, load_fixture, micro_f1
 from backend.agents.protocol_auditor import parse_protocol
+from backend.agents.relaxation_sweep import sweep
 from backend.agents.risk_models import outlook
 from backend.agents.twin_generator import twin_distribution
 from backend.config import FHIR_DIR, N2C2_DATA_DIR
-from backend.database import get_protocol, init_db, save_protocol_audit
+from backend.database import (
+    get_protocol,
+    init_db,
+    list_site_metrics,
+    save_protocol_audit,
+)
 from backend.routes.core import audited_criteria
 
 router = APIRouter()
@@ -29,6 +35,7 @@ class ForecastRequest(BaseModel):
     enrolled_so_far: int = 0
     deadline_months: float | None = None
     seed: int = 42
+    use_site_history: bool = False
 
 
 class TwinsRequest(BaseModel):
@@ -65,13 +72,63 @@ def trial_outlook(protocol_id: str) -> dict[str, Any]:
 
 @router.post("/api/forecast")
 def forecast_endpoint(body: ForecastRequest) -> dict[str, Any]:
-    return forecast(
-        body.sites,
+    sites = body.sites
+    sources: dict[int, str] = {}
+    if body.use_site_history:
+        init_db()
+        priors = site_priors_from_metrics(list_site_metrics())
+        merged = []
+        for i, s in enumerate(sites):
+            sid = str(s.get("id", s.get("site_id", "")))
+            if sid in priors:
+                merged.append({**s, **priors[sid]})
+                sources[i] = "observed"
+            else:
+                merged.append(s)
+                sources[i] = "provided"
+        sites = merged
+    out = forecast(
+        sites,
         body.target_enrollment,
         body.enrolled_so_far,
         body.deadline_months,
         seed=body.seed,
     )
+    if sources:
+        out["site_sources"] = sources
+    return out
+
+
+class SweepRequest(BaseModel):
+    protocol_id: str
+    bundles: list[dict[str, Any]] | None = None
+    twin_seed_bundle_id: str | None = None
+    twins_n: int = 0
+    seed: int = 7
+
+
+@router.post("/api/relax-sweep")
+def relax_sweep(body: SweepRequest) -> dict[str, Any]:
+    init_db()
+    crit = audited_criteria(body.protocol_id)
+    bundles = body.bundles
+    if body.twin_seed_bundle_id:
+        p = FHIR_DIR / f"{body.twin_seed_bundle_id}.json"
+        if not p.exists():
+            raise HTTPException(status_code=404, detail="Seed bundle not found")
+        bundles = [json.loads(p.read_text())]
+    if not bundles:
+        bundles = (
+            [json.loads(p.read_text()) for p in sorted(FHIR_DIR.glob("*.json"))]
+            if FHIR_DIR.exists()
+            else []
+        )
+    if not bundles:
+        raise HTTPException(status_code=400, detail="Provide bundles to sweep over")
+    try:
+        return sweep(crit, bundles, body.twins_n, body.seed)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/api/twins")

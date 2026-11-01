@@ -16,7 +16,7 @@ Session constraints added on top: **zero cost** (no OpenRouter / Nemotron / NIM
 at all), **storage-light** (tiny repo, split dependencies, no model downloads),
 built directly in this folder (no background agents after the direct-build switch).
 
-## What is done (36 files, ~145 KB source + ~85 KB SQLite DB)
+## What is done (111 files, ≈ 1 MB working tree; SQLite DB generated)
 
 | Cookbook item | Status | Delivered as |
 |---|---|---|
@@ -58,6 +58,13 @@ built directly in this folder (no background agents after the direct-build switc
 | Creatinine units (V2) | Done | mg/dL ↔ µmol/L/mmol/L conversion in numeric checks |
 | Note ECOG (V2) | Done | ECOG/KPS fallback from clinical notes |
 | UI smoke test (V2) | Done | `tests/test_ui_smoke.mjs` + CI node step |
+| Relaxation sweep (S1) | Done | `relaxation_sweep.py` + `/api/relax-sweep`; ladders + marginal flips over twins |
+| Failure forensics (S2) | Done | `failure_forensics.py` + `/api/forensics`; rates + drivers over stored runs |
+| Retention risk (S3) | Done | `retention.py` + `/api/retention`; 0–100 score + remote what-if |
+| AE enrichment (S4) | Done | Temporality/attribution/certainty on every triage record + Signal column |
+| Forecast priors (S5) | Done | `site_priors_from_metrics` + `use_site_history`; observed/provided tags |
+| Outcome benchmark (S6) | Done | `fetch_ctgov_outcomes` + `/api/outcome-benchmark`; live/cache/fallback chips |
+| Match provenance (S7) | Done | Per-evaluation match_type/confidence via `ENTAILMENT_BACKEND=rules-v1` |
 | UI polish | Done | Portfolio stats, site-query fields, Yes/No cells — no stray JSON |
 | Value map | Done | `PRODUCT_VALUE_MAP.md`: per-feature deliverables × product value |
 | Smoke tests | Done, green | `tests/test_smoke.py`, stdlib unittest, 5/5 passing |
@@ -78,6 +85,8 @@ built directly in this folder (no background agents after the direct-build switc
   main/mvp core parity exit 0
 - V2: ruff clean; 39/39 unit + 30/30 e2e + UI smoke on main;
   20/20 unit + 12/12 e2e on mvp; parity exit 0
+- S-track: ruff clean; 50/50 unit (incl. `STrackTests` ×11) + 36/36
+  e2e + UI smoke on main; sweep e2e call hardened to 120 s timeout
 
 ## Bugs found and fixed during verification
 
@@ -96,13 +105,13 @@ built directly in this folder (no background agents after the direct-build switc
 8. New UI panels assumed wrong module schemas → corrected to the real
    contracts (flat forecast percentiles, counts-based twins, nested
    mCODE profile, bootloader outlook).
+9. E2E sweep call (12 s endpoint, 30 s budget) timed out 3× under machine
+   load → per-call timeout (120 s) for that one heavy POST; suite green.
 
 ## Not done / remaining
 
 - PubMed hookup (CT.gov live lookup is now wired into Sites; PubMed was lower value for the demo path).
 - PDF protocol ingestion (txt/md only today).
-- Multi-rule criterion lines evaluate the first detected rule (e.g. ANC +
-  platelets in one bullet); one rule per line works best.
 - No auth / multi-user / deployment hardening (single-user local tool).
 
 ## Suggested next steps (domain)

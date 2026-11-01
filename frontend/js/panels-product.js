@@ -128,3 +128,23 @@ export async function runExternal() {
       "<h3>Methods note</h3><p>" + esc(r.methods_note) + "</p>";
   } catch (err) { fail(el, err); }
 }
+
+export async function runForensics() {
+  const el = $("forensicResult");
+  try {
+    const pid = $("historyPid").value.trim();
+    const q = pid ? "?protocol_id=" + encodeURIComponent(pid) : "";
+    const r = await getJSON("/api/forensics" + q);
+    if (!r.n_evaluations) {
+      el.innerHTML = "<p class='muted'>No stored evaluations yet — run Cohort matching first.</p>";
+      return;
+    }
+    el.innerHTML = "<h3>Top screen-failure drivers (" + esc(r.n_evaluations) + " runs)</h3>" +
+      table(r.top_drivers, [["criterion_id", "Criterion"], ["kind", "Kind"], ["rate", "Rate %"], ["n", "n"]]) +
+      "<h3>Inclusion fail / missing rates</h3>" +
+      table(r.inclusions, [["criterion_id", "ID"], ["fail_rate", "Fail %"], ["missing_rate", "Missing %"], ["n", "n"]]) +
+      "<h3>Exclusion trigger rates</h3>" +
+      table(r.exclusions, [["criterion_id", "ID"], ["trigger_rate", "Trigger %"], ["n", "n"]]) +
+      "<p class='muted'>" + esc(r.note) + "</p>";
+  } catch (err) { fail(el, err); }
+}

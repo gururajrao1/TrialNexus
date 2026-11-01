@@ -61,3 +61,25 @@ def forecast(
             sum(1 for t in times if t <= deadline_months) / len(times), 3
         )
     return out
+
+
+def site_priors_from_metrics(rows: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
+    """Empirical-Bayes inputs: per-site accrual + months from observed metrics.
+
+    Turns the site_metrics history into the observed half of each site's
+    Gamma posterior, replacing assumed run-rates with measured ones.
+    """
+    by_site: dict[str, list[float]] = {}
+    for r in rows:
+        try:
+            by_site.setdefault(str(r["site_id"]), []).append(float(r["enrolled"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return {
+        sid: {
+            "accrual": round(sum(vals) / len(vals), 3),
+            "months_observed": float(len(vals)),
+        }
+        for sid, vals in by_site.items()
+        if vals
+    }

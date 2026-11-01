@@ -41,14 +41,16 @@ export function critTable(rows) {
 }
 
 export function evalTable(rows, isExclusion) {
-  let h = '<table class="grid"><thead><tr><th>ID</th><th>Outcome</th><th>Evidence</th></tr></thead><tbody>';
+  let h = '<table class="grid"><thead><tr><th>ID</th><th>Outcome</th><th>Evidence</th><th>Signal</th></tr></thead><tbody>';
   for (const e of rows) {
     const bad = isExclusion ? e.triggered : !e.passed;
     const outcome = e.missing_data ? "<span class='miss'>NEEDS DATA</span>"
       : (bad ? "<span class='fail'>" + (isExclusion ? "TRIGGERED" : "FAIL") + "</span>"
              : "<span class='pass'>" + (isExclusion ? "CLEAR" : "PASS") + "</span>");
     h += "<tr><td class='mono'>" + esc(e.criterion_id) + "</td><td>" + outcome + "</td><td>" +
-      esc(e.clinical_evidence_found) + "</td></tr>";
+      esc(e.clinical_evidence_found) + "</td><td><span class='chip'>" +
+      esc(((e.provenance || {}).match_type || "—") + "/" + ((e.provenance || {}).confidence || "—")) +
+      "</span></td></tr>";
   }
   return h + "</tbody></table>";
 }

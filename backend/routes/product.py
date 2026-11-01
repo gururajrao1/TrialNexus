@@ -15,8 +15,11 @@ from pydantic import BaseModel
 from backend.agents.burden_scorer import score_burden
 from backend.agents.diversity_planner import DEFAULT_TARGETS, plan_diversity
 from backend.agents.external_control import build_external_control
+from backend.agents.failure_forensics import forensic_report
 from backend.agents.kri_monitor import portfolio_kris
 from backend.agents.protocol_auditor import parse_protocol
+from backend.agents.retention import retention_risk
+from backend.agents.site_scout import fetch_ctgov_outcomes
 from backend.agents.startup_tracker import STAGES, startup_report
 from backend.agents.structured_export import build_structure
 from backend.agents.trial_finder import rank_trials
@@ -246,3 +249,40 @@ def external_control(body: ExternalControlRequest) -> dict[str, Any]:
             else []
         )
     return build_external_control(crit, bundles, body.relax_ids)
+
+
+class RetentionRequest(BaseModel):
+    protocol_id: str
+    bundle: dict[str, Any]
+
+
+@router.get("/api/forensics")
+def forensics(protocol_id: str | None = None) -> dict[str, Any]:
+    init_db()
+    evals = []
+    for r in list_patient_evaluations(protocol_id):
+        raw = r.get("rationale")
+        try:
+            evals.append(json.loads(raw) if isinstance(raw, str) else raw)
+        except (TypeError, ValueError):
+            continue
+    return forensic_report([e for e in evals if isinstance(e, dict)])
+
+
+@router.post("/api/retention")
+def retention_endpoint(body: RetentionRequest) -> dict[str, Any]:
+    init_db()
+    proto = get_protocol(body.protocol_id)
+    if not proto:
+        raise HTTPException(status_code=404, detail="Protocol not found")
+    return retention_risk(score_burden(proto["raw_content"]), body.bundle)
+
+
+@router.get("/api/outcome-benchmark")
+def outcome_benchmark(condition: str, phase: str = "") -> dict[str, Any]:
+    if not condition.strip():
+        raise HTTPException(status_code=400, detail="condition is required")
+    try:
+        return fetch_ctgov_outcomes(condition.strip(), phase.strip())
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"registry lookup failed: {exc}")

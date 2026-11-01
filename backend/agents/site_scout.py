@@ -27,19 +27,34 @@ REGULATORY_EFFICIENCY = {
 }
 
 
+def _read_cache() -> dict[str, Any]:
+    try:
+        if CACHE.exists():
+            data = json.loads(CACHE.read_text())
+            return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        pass
+    return {}
+
+
+def _write_cache(cache: dict[str, Any]) -> None:
+    while len(cache) > CTGV_CACHE_MAX_ENTRIES:  # forget oldest lookups first
+        cache.pop(next(iter(cache)))
+    try:
+        CACHE.parent.mkdir(parents=True, exist_ok=True)
+        CACHE.write_text(json.dumps(cache))
+    except OSError:
+        pass
+
+
 def fetch_ctgov_competitors(
     condition: str, country: str, timeout: float = 8.0
 ) -> dict[str, Any]:
     """Count recruiting CT.gov studies; cached, with offline fallback."""
     key = f"{condition.lower()}|{country.lower()}"
-    cache: dict[str, int] = {}
-    try:
-        if CACHE.exists():
-            cache = json.loads(CACHE.read_text())
-        if key in cache:
-            return {"count": cache[key], "source": "cache"}
-    except (OSError, ValueError):
-        cache = {}
+    cache = _read_cache()
+    if key in cache and isinstance(cache[key], int):
+        return {"count": cache[key], "source": "cache"}
     try:
         import httpx  # core dep, imported lazily
 
@@ -57,16 +72,97 @@ def fetch_ctgov_competitors(
         res.raise_for_status()
         count = int(res.json().get("totalCount", 0))
         cache[key] = count
-        while len(cache) > CTGV_CACHE_MAX_ENTRIES:  # forget oldest lookups first
-            cache.pop(next(iter(cache)))
-        try:
-            CACHE.parent.mkdir(parents=True, exist_ok=True)
-            CACHE.write_text(json.dumps(cache))
-        except OSError:
-            pass
+        _write_cache(cache)
         return {"count": count, "source": "live"}
     except Exception:
-        return {"count": cache.get(key, 0), "source": "offline-fallback"}
+        hit = cache.get(key)
+        return {
+            "count": hit if isinstance(hit, int) else 0,
+            "source": "offline-fallback",
+        }
+
+
+def fetch_ctgov_outcomes(
+    condition: str, phase: str = "", timeout: float = 10.0
+) -> dict[str, Any]:
+    """Benchmark completed trials: counts, results rate, enrollment, outcomes."""
+    key = f"outcomes|{condition.lower()}|{phase.lower()}"
+    cache = _read_cache()
+    if key in cache and isinstance(cache[key], dict):
+        out = dict(cache[key])
+        out["source"] = "cache"
+        return out
+    blank = {
+        "n_completed": 0,
+        "sampled_n": 0,
+        "with_results": 0,
+        "with_results_pct": 0.0,
+        "median_enrollment": 0,
+        "top_outcomes": [],
+        "source": "offline-fallback",
+        "condition": condition,
+        "phase": phase or "any",
+    }
+    try:
+        import httpx  # core dep, imported lazily
+
+        params: dict[str, Any] = {
+            "query.cond": condition,
+            "filter.overallStatus": "COMPLETED",
+            "pageSize": 25,
+            "countTotal": "true",
+        }
+        if phase.strip():
+            params["filter.advanced"] = f"AREA[Phase]{phase.strip()}"
+        res = httpx.get(
+            "https://clinicaltrials.gov/api/v2/studies", params=params, timeout=timeout
+        )
+        res.raise_for_status()
+        data = res.json()
+        studies = data.get("studies", []) or []
+        total = int(data.get("totalCount", len(studies)))
+        enroll: list[int] = []
+        outcomes: dict[str, int] = {}
+        with_res = 0
+        for s in studies:
+            proto = s.get("protocolSection", {}) or {}
+            design = proto.get("designModule", {}) or {}
+            n = (design.get("enrollmentInfo", {}) or {}).get("count")
+            if isinstance(n, int) and n > 0:
+                enroll.append(n)
+            mods = (proto.get("outcomesModule", {}) or {}).get(
+                "primaryOutcomes", []
+            ) or []
+            for o in mods:
+                m = str(o.get("measure") or "").strip()
+                if m:
+                    outcomes[m] = outcomes.get(m, 0) + 1
+            res_sec = s.get("resultsSection", {}) or {}
+            if res_sec.get("firstPostDateStruct") or s.get("hasResults"):
+                with_res += 1
+        enroll.sort()
+        top = sorted(outcomes.items(), key=lambda kv: (-kv[1], kv[0]))[:5]
+        out = {
+            "n_completed": total,
+            "sampled_n": len(studies),
+            "with_results": with_res,
+            "with_results_pct": round(100.0 * with_res / max(1, len(studies)), 1),
+            "median_enrollment": enroll[len(enroll) // 2] if enroll else 0,
+            "top_outcomes": [{"measure": m, "n": c} for m, c in top],
+            "source": "live",
+            "condition": condition,
+            "phase": phase or "any",
+        }
+        cache[key] = {k: v for k, v in out.items() if k != "source"}
+        _write_cache(cache)
+        return out
+    except Exception:
+        hit = cache.get(key)
+        if isinstance(hit, dict):
+            out = dict(hit)
+            out["source"] = "cache"
+            return out
+        return blank
 
 
 def _velocity_score(accrual_per_month: float) -> float:

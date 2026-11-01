@@ -27,12 +27,12 @@ $2.6B, much of it operational friction:
 
 | # | Tab | What it does |
 |---|---|---|
-| 1 | Protocol audit | I/E extraction, fragility, $ exposure, M11 export, burden, outlook |
-| 2 | Site feasibility | Ranked sites + Poisson-Gamma enrollment forecast |
-| 3 | Cohort matching | FHIR patients → ELIGIBLE / INELIGIBLE / REVIEW_REQUIRED |
-| 4 | Safety triage | AE triage with SAE flags, clocks, and site queries |
+| 1 | Protocol audit | I/E extraction, fragility, $ exposure, M11 export, burden, outlook, outcome benchmarks |
+| 2 | Site feasibility | Ranked sites + Poisson-Gamma forecast (optional observed-history priors) |
+| 3 | Cohort matching | FHIR patients → ELIGIBLE / INELIGIBLE / REVIEW_REQUIRED + sweep + retention |
+| 4 | Safety triage | AE triage with SAE flags, clocks, Signal column, enrichment, site queries |
 | 5 | Diversity plan | Enrollment mix vs goals, gaps, focus areas |
-| 6 | History & export | Every run persisted; CSV downloads |
+| 6 | History & export | Every run persisted; forensics; CSV downloads |
 | 7 | Study startup | Pipeline stages vs benchmark flags |
 | 8 | Monitoring | Central KRIs with alert/watch/ok per site |
 | 9 | Find trials | Reverse match: patient → ranked trials |
@@ -56,7 +56,7 @@ pip install -r requirements.txt        :: 4 packages: fastapi, uvicorn, pydantic
 
 :: 2. Seed the database and run the fast suite (no server needed):
 python seed_data.py
-python -m unittest discover -s tests  :: 26 tests, ~10 seconds
+python -m unittest discover -s tests  :: 50 tests, ~25 seconds
 
 :: 3. Start the API (leave running) and open the app:
 uvicorn backend.app:app --port 8000
@@ -64,7 +64,7 @@ uvicorn backend.app:app --port 8000
 
 - UI: http://localhost:8000/
 - Interactive API docs: http://localhost:8000/docs
-- Live checks: `python tests/test_e2e_live.py` (30 checks, needs the server)
+- Live checks: `python tests/test_e2e_live.py` (36 checks, needs the server)
 
 OneDrive tip: right-click `.venv` → "Free up space" to keep it on-demand.
 
@@ -73,9 +73,9 @@ OneDrive tip: right-click `.venv` → "Free up space" to keep it on-demand.
 | Cookbook agent | This build |
 |---|---|
 | Protocol Auditor | Regex I/E parser → INC/EXC rules, fragility index, SoA clash checks, readability metrics |
-| Site Scout | 35/25/20/20 feasibility formula; CT.gov lookup cached with offline fallback |
-| Cohort Matcher | FHIR R4 evaluator (labs, conditions, meds, age, notes) → ELIGIBLE / INELIGIBLE / REVIEW_REQUIRED, negation- and synonym-aware |
-| Safety Triage | MedDRA SOC keyword map + SAE rules + 7-day / 15-day clocks + drafted site queries |
+| Site Scout | 35/25/20/20 feasibility formula; CT.gov lookup cached with offline fallback; completed-trial outcome benchmarks |
+| Cohort Matcher | FHIR R4 evaluator (labs, conditions, meds, age, notes) → ELIGIBLE / INELIGIBLE / REVIEW_REQUIRED, negation- and synonym-aware, with per-criterion provenance |
+| Safety Triage | MedDRA SOC keyword map + SAE rules + 7-day / 15-day clocks + drafted site queries + temporality/attribution/certainty enrichment |
 | EngineRouter | `ZeroCostRouter`: local Ollama if you run one, else deterministic stub (agents never need it) |
 
 Multi-threshold lines evaluate every sub-rule: comma/and-joined panels
@@ -93,13 +93,15 @@ FastAPI  backend/app.py  ── thin entrypoint: UI + static + routers
         │                      score-sites, match-cohort, triage-safety
         ├── routes/product.py  diversity, history/export, structure,
         │                      burden, startup, monitoring, finder,
-        │                      external-control
-        └── routes/tier.py     outlook, forecast, twins, mcode, n2c2-status
+        │                      external-control, forensics, retention,
+        │                      outcome-benchmark
+        └── routes/tier.py     outlook, forecast (+history), sweep, twins,
+                               mcode, n2c2-status
         │
         ▼
 agents  backend/agents/*.py  ── pure deterministic functions
         │  (protocol_auditor, site_scout, cohort_matcher, safety_triage,
-        │   + 13 product/Tier modules; see Features)
+        │   + 16 product/Tier/S modules; see Features)
         ▼
 SQLite (WAL)  data/local_db/trialnexus_state.db  ── via backend/database.py
 config  backend/config.py  ── every path + cap in one place
@@ -129,7 +131,7 @@ trialnexus/
 │   ├── router.py                # ZeroCostRouter (optional Ollama probe)
 │   ├── database.py              # SQLite WAL layer (7 tables + schema_version)
 │   ├── routes/                  # core.py, product.py, tier.py
-│   └── agents/                  # 4 cookbook agents + 13 product/Tier modules
+│   └── agents/                  # 4 cookbook agents + 16 product/Tier/S modules
 ├── frontend/
 │   ├── index.html               # 13 tabs + snapshot + stepper
 │   ├── styles.css               # life-sciences theme
@@ -208,9 +210,11 @@ unit handling), age/histology/stage, meds, and **clinical notes**
 "myocardial infarction") with negation awareness ("No evidence of…"
 never counts as evidence). Prior-therapy windows use real date math
 against medication dates; creatinine converts mg/dL↔µmol/L; ECOG/KPS can
-come from notes when no observation exists. Verdicts: ELIGIBLE (all INC
-pass, 0 EXC hit), INELIGIBLE (hard fail), REVIEW_REQUIRED (data missing
-→ action items).
+come from notes when no observation exists. Every evaluation carries
+**provenance** (`match_type`: exact / synonym / note / missing;
+`confidence`: high / medium / low) backed by the `rules-v1` entailment
+backend. Verdicts: ELIGIBLE (all INC pass, 0 EXC hit), INELIGIBLE (hard
+fail), REVIEW_REQUIRED (data missing → action items).
 
 - **Try it:** Cohort matching tab → Match cohort. Expect: patient-001
   ELIGIBLE 100%; patient-002 INELIGIBLE (low ANC + prior TKI trigger);
@@ -221,7 +225,8 @@ pass, 0 EXC hit), INELIGIBLE (hard fail), REVIEW_REQUIRED (data missing
   (400 until the protocol has been audited once).
 - **Proof:** `CohortTest`, `Tier12Tests` (synonyms/notes ×4), e2e
   `patient-001 ELIGIBLE`, `patient-002 INELIGIBLE with cause`,
-  `patient-003 REVIEW_REQUIRED`, `negation respected`.
+  `patient-003 REVIEW_REQUIRED`, `negation respected`,
+  `match carries provenance`, `STrackTests` provenance ×3.
 
 ### 4. Safety triage — SAE radar with regulatory clocks
 
@@ -229,13 +234,17 @@ Maps reported terms to MedDRA System Organ Classes, applies SAE rules
 (death, life-threatening, hospitalization, disability, anomaly),
 computes **7-day (fatal/life-threatening) / 15-day (other serious)**
 expedited clocks, and drafts a site query with an auto-close condition.
+Each record also carries **enrichment**: temporality (onset timing),
+attribution (relatedness), and certainty (evidence level), each with a
+stated basis; the UI surfaces a Signal column for at-a-glance review.
 
 - **Try it:** Safety triage tab → Triage. Expect: DISC-902 flagged SAE
   (Blood SOC) with a **360h** expedited clock + drafted query; the other
   three records routine with correct SOC/grade, no false alerts.
 - **API:** `POST /api/triage-safety` `{records, protocol_id}`.
 - **Proof:** `SiteSafetyTest` (triage half), e2e `SAE detected with 360h
-  clock`, `routine cases stay routine`.
+  clock`, `routine cases stay routine`, `triage carries enrichment`,
+  `STrackTests` enrichment ×1.
 
 ### 5. Diversity plan — DAP-gap analysis from the same bundles
 
@@ -339,14 +348,19 @@ comparability mix tables, and a pre-specified methods note with caveats.
 Poisson-Gamma model: each site's accrual rate gets a Gamma posterior
 (weak prior + observed enrollments/months); 20,000 seeded Monte Carlo
 draws yield months-to-target percentiles and P(hitting a deadline).
+With `use_site_history`, assumed run-rates are replaced by measured
+accrual from the `site_metrics` history (empirical-Bayes priors), and
+the response tags each site `observed` vs `provided`.
 
 - **Try it:** Site feasibility tab → scroll to the forecast. Expect
-  ordered P10 ≤ P50 ≤ P90 months with simulation count + seed.
+  ordered P10 ≤ P50 ≤ P90 months with simulation count + seed. Tick
+  "Use observed site history" to blend in measured run-rates.
 - **API:** `POST /api/forecast`
   `{sites: [{accrual, months_observed}], target_enrollment,
-  enrolled_so_far?, deadline_months?, seed?}`.
+  enrolled_so_far?, deadline_months?, seed?, use_site_history?}`.
 - **Proof:** `Tier12Tests` (contract, determinism, monotonicity ×3),
-  e2e `forecast returns ordered percentiles`.
+  e2e `forecast returns ordered percentiles`,
+  `forecast blends observed site history`, `STrackTests` priors ×1.
 
 ### 13. Trial outlook — success odds with named drivers
 
@@ -401,6 +415,61 @@ drop it under `data/n2c2/` (`{id}.txt` + `labels.csv`) and run
 - **Proof:** `Tier12Tests.test_n2c2_fixture_perfect`, e2e `validity
   benchmark reports fixture F1`.
 
+### 17. Relaxation sweep — which threshold is actually binding?
+
+Re-runs the matcher over a twin cohort at progressively relaxed
+thresholds per numeric (sub-)rule and reports eligibility ladders:
+who newly flips to ELIGIBLE at each step, plus marginal flips
+(patients failing ONLY that criterion at baseline). Flat ladders are
+honest output — the threshold simply isn't binding for that cohort.
+
+- **Try it:** Cohort matching tab → Run relaxation sweep (patient-001
+  seed, 20 twins). Expect 5 criteria with ladders over 20 twins and a
+  baseline eligible count near 19.
+- **API:** `POST /api/relax-sweep`
+  `{protocol_id, twin_seed_bundle_id?, twins_n?, seed?, bundles?}`.
+- **Proof:** `STrackTests` sweep ×3, e2e `sweep returns ladders over twins`.
+
+### 18. Failure forensics — why are we screen-failing?
+
+Aggregates every stored cohort run into per-criterion fail / missing /
+trigger rates with ranked top drivers — the evidence base for
+amendment discussions ("EXC-01 triggers X% of screens").
+
+- **Try it:** History & export tab → run Cohort matching first, then
+  Refresh forensics. Expect per-criterion rates plus a ranked driver
+  list over all stored evaluations.
+- **API:** `GET /api/forensics?protocol_id=PROT-TNX-001`.
+- **Proof:** `STrackTests` forensics ×1, e2e `forensics aggregates
+  stored runs`.
+
+### 19. Retention risk — dropout radar per patient
+
+Deterministic bootloader scorer combining visit burden with frailty
+proxies (age, ECOG, polypharmacy, comorbidity count) into a 0–100
+score with low/moderate/high bands, named factors, and a what-if
+rescore with convertible visits done remotely.
+
+- **Try it:** Cohort matching tab → Retention panel, pick
+  `patient_001_breast_cancer.json`. Expect a moderate-band score with
+  ≥ 2 factors and a what-if delta ≤ 0 (remote visits never hurt).
+- **API:** `POST /api/retention` `{protocol_id, bundle}`.
+- **Proof:** `STrackTests` retention ×1, e2e `retention scores with
+  what-if`.
+
+### 20. Outcome benchmark — what did similar trials achieve?
+
+Benchmarks the indication against completed CT.gov trials: counts,
+results-reporting rate, median enrollment, and outcome-measure
+patterns, with `live` / `cache` / `offline-fallback` source chips.
+
+- **Try it:** Protocol audit tab → Outcome benchmark (condition
+  prefilled from the protocol). Expect hundreds of completed NSCLC
+  trials with a results rate and median enrollment.
+- **API:** `GET /api/outcome-benchmark?condition=…&phase=…`.
+- **Proof:** `STrackTests` outcomes ×1, e2e `outcome benchmark returns
+  registry shape`.
+
 ### Also: snapshot, demo feed, health
 
 - `GET /health` → `{"status": "healthy", "mode": "zero-cost-local"}`.
@@ -414,14 +483,14 @@ Three layers, cheapest first. Counts are for `main`
 (`mvp` runs the 4-agent subset: 20 unit + 12 e2e).
 
 ```bat
-:: Layer 1 — fast offline unit tests (no server): 39 tests
+:: Layer 1 — fast offline unit tests (no server): 50 tests
 python -m unittest discover -s tests
 
 :: Layer 2 — lint + format gate (dev only):
 ruff check backend tests seed_data.py
 ruff format --check backend tests seed_data.py
 
-:: Layer 3 — live problem-statement checks (server running): 30 checks
+:: Layer 3 — live problem-statement checks (server running): 36 checks
 uvicorn backend.app:app --port 8000     :: separate terminal, leave running
 python tests/test_e2e_live.py          :: prints PASS/FAIL per check + FAILURES: 0
 ```
@@ -438,7 +507,7 @@ Manual testing per feature is covered above (each feature's **Try it**);
 
 | Branch | Contents | Tests |
 |---|---|---|
-| `main` | Full product: everything in this README | 39 unit + 30 e2e |
+| `main` | Full product: everything in this README | 50 unit + 36 e2e |
 | `mvp` | Cookbook core: 4 agents, 8 endpoints, 4-tab UI | 20 unit + 12 e2e |
 
 Rules: `main` evolves freely; `mvp` stays lean — never merge `main`
@@ -449,7 +518,7 @@ into it. Shared core fixes travel by checkout from `main`
 
 | Item | Size |
 |---|---|
-| Repo working tree (code + seeds + docs) | < 1 MB |
+| Repo working tree (code + seeds + docs) | ≈ 1 MB |
 | SQLite DB after seeding | < 200 KB (generated; git-ignored) |
 | CT.gov cache | capped at 200 entries, oldest forgotten first |
 | Twins / simulations | in-memory only, never written to disk |

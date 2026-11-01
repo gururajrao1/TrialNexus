@@ -14,6 +14,10 @@ const IDS = new Set([
   "monitoringResult", "finderBundle", "finderResult", "relaxIds", "externalResult",
   "twinsBundle", "twinsN", "twinsResult", "mcodeBundle", "mcodeResult", "validityResult",
   "dlStructure", "copyStructure",
+  "sweepSeed", "sweepN", "sweepResult", "sweepForm",
+  "retentionBundle", "retentionResult", "retentionForm",
+  "outcomesCondition", "outcomesPhase", "outcomesResult", "outcomesForm",
+  "forensicResult",
 ]);
 for (const t of TABS) { IDS.add("tabbtn-" + t); IDS.add("tab-" + t); IDS.add(t + "Form"); }
 
@@ -114,6 +118,20 @@ globalThis.fetch = async (url) => {
       note: "n" },
     "/api/n2c2-status": { fixture_f1: 1, criteria: [], real_data_present: false,
       instructions: "i" },
+    "/api/relax-sweep": { source: "s", n_patients: 1, baseline_eligible_n: 1,
+      criteria: [{ id: "INC-04", raw_text: "r", marginal_flips: [], marginal_n: 0,
+        sub_sweeps: [{ variable: "v", operator: ">=", base: 1, unit: "u",
+          ladder: [{ threshold: 0.9, eligible_n: 1, newly_n: 0, newly_eligible: [] }] }] }],
+      note: "n" },
+    "/api/retention": { score: 10, band: "low",
+      factors: [{ factor: "f", points: 1, modifiable: true }],
+      what_if_remote: { convertible_visits: 1, score: 9, band: "low", delta: -1 },
+      basis: "b" },
+    "/api/forensics": { n_evaluations: 1,
+      inclusions: [{ criterion_id: "INC-01", fail_rate: 0, missing_rate: 0, n: 1 }],
+      exclusions: [],
+      top_drivers: [{ criterion_id: "INC-01", kind: "k", rate: 0, n: 0 }],
+      note: "n" },
   };
   if (!(path in routes)) throw new Error("unstubbed endpoint: " + path);
   return { ok: true, json: async () => routes[path] };
@@ -122,7 +140,8 @@ globalThis.fetch = async (url) => {
 await import("../frontend/js/boot.js");
 await new Promise((r) => setTimeout(r, 500)); // let the boot chain settle
 
-const results = [...TABS.map((t) => t + "Result")];
+const results = [...TABS.map((t) => t + "Result"),
+  "sweepResult", "retentionResult", "forensicResult"];
 for (const id of results) {
   const html = elements.get(id)?.innerHTML || "";
   assert.ok(html.length > 0, id + " was never rendered");
@@ -137,4 +156,4 @@ assert.ok((elements.get("snapshot")?.innerHTML || "").includes("Protocols"));
 for (const fn of listeners.get("tabbtn-sites")?.click || []) fn();
 assert.equal(elements.get("tab-sites").hidden, false);
 assert.equal(elements.get("tab-audit").hidden, true);
-console.log("ui-smoke-ok: 13 panels rendered, 0 errors, tabs switch");
+console.log("ui-smoke-ok: all panels rendered, 0 errors, tabs switch");

@@ -4,12 +4,12 @@
 
 ```bat
 python seed_data.py
-python -m unittest discover -s tests        :: fast offline suite (39 tests)
+python -m unittest discover -s tests        :: fast offline suite (50 tests)
 uvicorn backend.app:app --port 8000         :: leave running
 python tests/test_e2e_live.py               :: live problem-statement checks
 ```
 
-Then open http://127.0.0.1:8000/ and walk the four scenarios below.
+Then open http://127.0.0.1:8000/ and walk the scenarios below.
 
 ## Scenario 1 — Protocol amendments (tab: Protocol audit)
 
@@ -162,6 +162,32 @@ and matchers ship without independent benchmarks.
 - Proves: uncertainty-quantified planning, a standard oncology summary,
   and a benchmarked matcher — all offline and deterministic.
 
+## Scenario 14 — S-track: sweep, forensics, retention, outcomes
+
+Problem: amendments are negotiated blind (which threshold binds?),
+screen-failure drivers stay anecdotal, dropouts surprise sites, and
+success odds ignore what similar trials actually achieved.
+
+- Cohort matching tab: run the relaxation sweep (patient-001 seed,
+  20 twins). Expect 5 criteria with ladders over 20 twins and a
+  baseline eligible count near 19; flat ladders mean "not binding".
+- History & export tab: run Cohort matching first, then refresh
+  forensics. Expect per-criterion fail/missing/trigger rates with
+  ranked top drivers over all stored runs.
+- Cohort matching tab: retention panel with
+  `patient_001_breast_cancer.json`. Expect a moderate-band score with
+  named factors and a what-if remote delta ≤ 0.
+- Protocol audit tab: outcome benchmark (condition prefilled).
+  Expect hundreds of completed trials with results rate, median
+  enrollment, and a `live`/`cache`/`offline-fallback` source chip.
+- Site feasibility tab: tick "Use observed site history" and
+  re-run the forecast. Expect per-site `observed`/`provided` tags.
+- Cohort matching + Safety triage: criterion rows now carry
+  provenance (match_type/confidence); AE rows carry a Signal column
+  plus temporality/attribution/certainty enrichment.
+- Proves: amendment leverage quantified, failure drivers ranked,
+  dropout risk scored, and benchmarks grounded in registry reality.
+
 ## Features × data map
 
 | Feature | Input data | What it does | Output |
@@ -185,18 +211,29 @@ and matchers ship without independent benchmarks.
 | mCODE summary | 1 bundle | mCODE-inspired field extraction + completeness | Profile table, completeness %, gaps |
 | n2c2 validity | `tests/fixtures/n2c2_mini.json` (+ optional `data/n2c2/`) | 13-criterion rule benchmark, micro-F1 | Fixture F1 1.0, real-data status, DUA path |
 | Note-aware matching | DocumentReference / note Observations | Synonym-normalized, negation-aware note search | Note-cited evidence in evaluations |
+| Relaxation sweep | Audited criteria + 20 twins (in-memory) | Per-threshold re-evaluation, ladders + marginal flips | Binding-threshold ranking per criterion |
+| Failure forensics | Stored `patient_evaluations` rationales | Fail/missing/trigger rates per criterion + ranked drivers | Forensics table in History tab |
+| Retention risk | Burden scores + 1 bundle | Burden + frailty proxies → 0–100 score + remote what-if | Band, factors, what-if delta |
+| AE enrichment | Triaged AE records | Temporality/attribution/certainty cues with basis | Signal column + enrichment per record |
+| Forecast priors | `site_metrics` history | Empirical-Bayes accrual priors replace assumptions | `observed`/`provided` site tags |
+| Outcome benchmark | CT.gov completed trials (cached) | Counts, results rate, median enrollment, outcomes | Benchmark panel + source chip |
+| Match provenance | Each criterion evaluation | match_type + confidence via `rules-v1` backend | Provenance on every evaluation |
 | Snapshot + demo feed | SQLite + seed files | Counts + prefill payloads for the UI | `/api/snapshot`, `/api/demo-data` |
 
 ## Data catalog (every file earns its place)
 
 - `protocol_oncology_phase3.txt` — NSCLC EGFR Phase 3; exercises age,
   ECOG, ANC sci-notation, creatinine, TKI, CNS, QTc, pregnancy parsing.
+- `protocol_breast_phase2.txt` / `protocol_diabetes_phase2.txt` — extra
+  protocols for the trial finder + control pool.
 - `patient_001_breast_cancer.json` — clean eligible case (all data present).
 - `patient_002_control.json` — hard fails (ANC 900, prior osimertinib).
 - `patient_003_review.json` — missing-data case + negation trap.
+- `patient_004_her2.json` / `patient_005_diabetes.json` — finder + mCODE demos.
 - `adverse_events_stream.json` — routine liver signal, unexpected SAE,
   severe QTc, mild nausea.
-- `trialnexus_state.db` — SQLite WAL store (seeded: 1 protocol, 3 sites).
+- `trialnexus_state.db` — SQLite WAL store (seeded: 3 protocols, 3 sites,
+  startup pipeline, monthly metrics; evaluations/queries accumulate).
 
 ## Known limits (next upgrades)
 

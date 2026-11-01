@@ -1,7 +1,7 @@
 /* Core panel runners: audit, sites, cohort, safety. */
 import { $, esc, fail, getJSON, postJSON } from "./api.js";
 import { COHORT_BADGE, SITE_BADGE, critTable, evalTable, preJSON, table } from "./ui.js";
-import { selectedBundles } from "./data.js";
+import { demoBundles, selectedBundles } from "./data.js";
 
 let lastStructure = null;
 
@@ -99,11 +99,14 @@ export async function runSites() {
       "</strong> — projected <strong>" + esc(r.portfolio_summary.projected_timeline_to_lpi_months) +
       " months</strong> to last patient in.</p>";
     const fc = await postJSON("/api/forecast", { sites: r.evaluated_sites.map((s) =>
-      ({ accrual: s.projected_monthly_accrual_rate, months_observed: 6 })), target_enrollment: target });
+      ({ id: s.site_id, accrual: s.projected_monthly_accrual_rate, months_observed: 6 })),
+      target_enrollment: target, use_site_history: true });
     el.innerHTML += "<h3>Enrollment forecast (Poisson-Gamma)</h3>" +
       "<p>Months to target — P10 <strong>" + esc(fc.p10) + "</strong>, P50 <strong>" +
       esc(fc.p50) + "</strong>, P90 <strong>" + esc(fc.p90) + "</strong> (mean " +
-      esc(fc.mean) + "; " + esc(fc.simulations) + " simulations, seed " + esc(fc.seed) + ")</p>";
+      esc(fc.mean) + "; " + esc(fc.simulations) + " simulations, seed " + esc(fc.seed) + ")</p>" +
+      (fc.site_sources ? "<p class='muted'>Rate sources: " +
+        esc(Object.values(fc.site_sources).join(", ")) + " (observed = measured site history)</p>" : "");
   } catch (err) { fail(el, err); }
 }
 
@@ -143,9 +146,77 @@ export async function runSafety() {
         (t.regulatory_alert_required ? esc(t.reporting_deadline_hours) + "h to report" : "standard reporting") + "</div>" : "") +
       "<p>" + esc(t.reported_term) + " — " + esc(t.meddra_classification.soc) + " / " +
       esc(t.meddra_classification.preferred_term) + " — " + esc(t.severity_grade) + "</p>" +
+      "<p class='muted'>Onset: " + esc(((t.enrichment || {}).temporality || {}).onset || "unknown") +
+      " — Relatedness: " + esc(((t.enrichment || {}).attribution || {}).relatedness || "unknown") +
+      " — Certainty: " + esc(((t.enrichment || {}).certainty || {}).level || "low") + "</p>" +
       "<details class='evidence'><summary>Site query</summary><p>To: <strong>" + esc(t.site_query.query_target) +
       "</strong></p><p>" + esc(t.site_query.query_text) + "</p><p class='muted'>Auto-close: " +
       esc(t.site_query.auto_close_condition) + "</p></details>" +
       "</div>").join("");
+  } catch (err) { fail(el, err); }
+}
+
+export async function runSweep() {
+  const el = $("sweepResult");
+  try {
+    const sel = $("sweepSeed");
+    if (!sel.options.length) {
+      sel.innerHTML = demoBundles.map((b, i) => '<option value="' + i + '">' + esc(b.name) + "</option>").join("");
+    }
+    const file = demoBundles[parseInt(sel.value || "0", 10)].name.replace(/\.json$/, "");
+    const r = await postJSON("/api/relax-sweep",
+      { protocol_id: "PROT-TNX-001", twin_seed_bundle_id: file,
+        twins_n: parseInt($("sweepN").value, 10) || 200 });
+    el.innerHTML = "<p>" + esc(r.source) + " — baseline eligible: <strong>" +
+      esc(r.baseline_eligible_n) + "/" + esc(r.n_patients) + "</strong></p>" +
+      r.criteria.map((c) =>
+        "<h3>" + esc(c.id) + (c.marginal_n ? " — flips " + esc(c.marginal_n) + " marginal" : "") + "</h3>" +
+        c.sub_sweeps.filter((s) => s.ladder.length).map((s) =>
+          "<p><span class='mono'>" + esc(s.variable) + " " + esc(s.operator) + " " + esc(s.base) +
+          "</span> → " + s.ladder.map((l) =>
+            esc(l.threshold) + ": <strong>" + esc(l.newly_n) + " new</strong>"
+          ).join(" · ") + "</p>").join("") +
+        (c.marginal_n ? "<p class='muted'>Marginal: " + esc(c.marginal_flips.slice(0, 5).join(", ")) +
+          (c.marginal_n > 5 ? " +" + esc(c.marginal_n - 5) + " more" : "") + "</p>" : "")
+      ).join("") +
+      "<p class='muted'>" + esc(r.note) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runRetention() {
+  const el = $("retentionResult");
+  try {
+    const sel = $("retentionBundle");
+    if (!sel.options.length) {
+      sel.innerHTML = demoBundles.map((b, i) => '<option value="' + i + '">' + esc(b.name) + "</option>").join("");
+    }
+    const bundle = demoBundles[parseInt(sel.value || "0", 10)].bundle;
+    const r = await postJSON("/api/retention", { protocol_id: "PROT-TNX-001", bundle });
+    const badge = r.band === "low" ? "b-elig" : (r.band === "moderate" ? "b-review" : "b-inelig");
+    el.innerHTML = "<h3>Dropout risk <span class='score'>" + esc(r.score) + "</span> " +
+      '<span class="badge ' + badge + '">' + esc(r.band) + "</span></h3>" +
+      table(r.factors.map((f) => ({ factor: f.factor, points: f.points,
+        modifiable: f.modifiable ? "yes" : "no" })),
+        [["factor", "Factor"], ["points", "Points"], ["modifiable", "Modifiable"]]) +
+      "<p>What-if (" + esc(r.what_if_remote.convertible_visits) + " visits remote): <strong>" +
+      esc(r.what_if_remote.score) + " (" + esc(r.what_if_remote.band) + ")</strong>, Δ " +
+      esc(r.what_if_remote.delta) + "</p>" +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runOutcomes() {
+  const el = $("outcomesResult");
+  try {
+    el.innerHTML = "<p class='muted'>Querying registry…</p>";
+    const r = await getJSON("/api/outcome-benchmark?condition=" +
+      encodeURIComponent($("outcomesCondition").value) + "&phase=" +
+      encodeURIComponent($("outcomesPhase").value));
+    el.innerHTML = "<h3>" + esc(r.n_completed) + " completed <span class='chip'>" +
+      esc(r.source) + "</span></h3>" +
+      "<p>Results posted: <strong>" + esc(r.with_results_pct) + "%</strong> of sampled " +
+      esc(r.sampled_n) + " — median enrollment <strong>" + esc(r.median_enrollment) + "</strong></p>" +
+      (r.top_outcomes.length ? table(r.top_outcomes.map((o) => ({ measure: o.measure, n: o.n })),
+        [["measure", "Primary outcome"], ["n", "Studies"]]) : "<p class='muted'>No outcome measures parsed.</p>");
   } catch (err) { fail(el, err); }
 }

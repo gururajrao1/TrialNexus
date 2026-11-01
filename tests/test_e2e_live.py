@@ -28,14 +28,14 @@ def get(path):
         return r.status, r.read().decode("utf-8", "ignore")
 
 
-def post(path, payload):
+def post(path, payload, timeout=30):
     req = urllib.request.Request(
         BASE + path,
         data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as r:
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.load(r)
 
 
@@ -278,6 +278,74 @@ def main():
         a["complexity"]["flesch_ease"] > 0
         and "entity_density_per_100w" in a["complexity"],
         a["complexity"]["flesch_kincaid_grade"],
+    )
+
+    # 13. S-track: sweep, forensics, retention, enrichment, priors, outcomes
+    sw = post(
+        "/api/relax-sweep",
+        {
+            "protocol_id": "PROT-TNX-001",
+            "twin_seed_bundle_id": "patient_001_breast_cancer",
+            "twins_n": 20,
+            "seed": 7,
+        },
+        timeout=120,
+    )
+    check(
+        "sweep returns ladders over twins",
+        sw["n_patients"] == 20
+        and len(sw["criteria"]) == 5
+        and any(s["ladder"] for c in sw["criteria"] for s in c["sub_sweeps"]),
+        (sw["baseline_eligible_n"], sw["source"]),
+    )
+    fo = json.loads(get("/api/forensics?protocol_id=PROT-TNX-001")[1])
+    check(
+        "forensics aggregates stored runs",
+        fo["n_evaluations"] >= 5 and len(fo["top_drivers"]) > 0,
+        fo["n_evaluations"],
+    )
+    rt = post("/api/retention", {"protocol_id": "PROT-TNX-001", "bundle": b001})
+    check(
+        "retention scores with what-if",
+        rt["band"] in ("low", "moderate", "high")
+        and rt["what_if_remote"]["delta"] <= 0
+        and len(rt["factors"]) >= 2,
+        (rt["score"], rt["band"]),
+    )
+    check(
+        "triage carries enrichment",
+        all("enrichment" in x and "temporality" in x["enrichment"] for x in t),
+        t[0]["enrichment"]["temporality"]["onset"],
+    )
+    fch = post(
+        "/api/forecast",
+        {
+            "sites": [{"id": "SITE-001", "accrual": 0.1, "months_observed": 1}],
+            "target_enrollment": 450,
+            "use_site_history": True,
+        },
+    )
+    check(
+        "forecast blends observed site history",
+        fch.get("site_sources", {}).get("0") == "observed" and fch["p50"] > 0,
+        fch.get("site_sources"),
+    )
+    ob = json.loads(get("/api/outcome-benchmark?condition=NSCLC&phase=PHASE3")[1])
+    check(
+        "outcome benchmark returns registry shape",
+        ob["source"] in ("live", "cache", "offline-fallback")
+        and "top_outcomes" in ob
+        and "median_enrollment" in ob,
+        ob["source"],
+    )
+    check(
+        "match carries provenance",
+        all(
+            "provenance" in e
+            for r in m["matching_results"]
+            for e in r["inclusion_evaluations"] + r["exclusion_evaluations"]
+        ),
+        by_id["patient-001"]["inclusion_evaluations"][0]["provenance"],
     )
 
     print(f"FAILURES: {len(FAILURES)}")

@@ -14,7 +14,12 @@ from typing import Any
 
 from backend.agents.synonyms import normalize
 
-REF_DATE = date(2025, 6, 1)  # simulated enrollment target date (deterministic)
+REF_DATE = date(2025, 6, 1)
+
+# Entailment backend id. Rules ("rules-v1") today; a future embedding
+# scorer (DeepEnroll-style) plugs in by replacing _affirmed/_notes_hit
+# verdicts while keeping this JSON contract, including provenance.
+ENTAILMENT_BACKEND = "rules-v1"  # simulated enrollment target date (deterministic)
 
 CELL_COUNT_UNITS = ("10^9", "/ul", "k/ul", "thou/ul", "cells/ul")
 STOPWORDS = {
@@ -452,14 +457,26 @@ def _eval_inclusion(
         "passed": False,
         "clinical_evidence_found": "",
         "missing_data": True,
+        "provenance": {"match_type": "missing", "confidence": "low"},
     }
 
-    def done(passed: bool, ev: str, miss: bool = False) -> dict[str, Any]:
+    def done(
+        passed: bool,
+        ev: str,
+        miss: bool = False,
+        prov: tuple[str, str] | None = None,
+    ) -> dict[str, Any]:
+        mt, cf = prov or (
+            ("missing", "low")
+            if miss
+            else (("exact", "high") if passed else ("absent", "medium"))
+        )
         return {
             "criterion_id": cid,
             "passed": passed,
             "clinical_evidence_found": ev,
             "missing_data": miss,
+            "provenance": {"match_type": mt, "confidence": cf},
         }
 
     if _has(blob, "age") or cat == "Demographic":
@@ -484,6 +501,7 @@ def _eval_inclusion(
         passed, ev, miss = _check_numeric(crit, lab, "ECOG")
         if noted is not None and not miss:
             ev = f"ECOG {noted[0]} from clinical note ({noted[1]}); " + ev
+            return done(passed, ev, miss, prov=("note", "medium"))
         return done(passed, ev, miss)
     subs = crit.get("sub_rules") or []
     if len(subs) > 1:
@@ -503,7 +521,9 @@ def _eval_inclusion(
             i = patient_text.find(w)
             if i == -1:
                 return done(
-                    True, f"Criterion term '{w}' documented (via synonym normalization)"
+                    True,
+                    f"Criterion term '{w}' documented (via synonym normalization)",
+                    prov=("synonym", "medium"),
                 )
             return done(
                 True,
@@ -511,7 +531,7 @@ def _eval_inclusion(
             )
         hit = _notes_hit(ctx, w)
         if hit:
-            return done(True, hit)
+            return done(True, hit, prov=("note", "medium"))
     return done(
         False,
         "No supporting documentation found for: " + crit.get("raw_text", "")[:120],
@@ -527,12 +547,23 @@ def _eval_exclusion(
     med_text = " ".join(meds).lower()
     cond_text = " ".join(conds).lower()
 
-    def done(triggered: bool, ev: str, miss: bool = False) -> dict[str, Any]:
+    def done(
+        triggered: bool,
+        ev: str,
+        miss: bool = False,
+        prov: tuple[str, str] | None = None,
+    ) -> dict[str, Any]:
+        mt, cf = prov or (
+            ("missing", "low")
+            if miss
+            else (("exact", "high") if triggered else ("absent", "medium"))
+        )
         return {
             "criterion_id": cid,
             "triggered": triggered,
             "clinical_evidence_found": ev,
             "missing_data": miss,
+            "provenance": {"match_type": mt, "confidence": cf},
         }
 
     if _has(blob, "tki", "tyrosine kinase", "egfr") and _has(blob, "prior"):
@@ -598,7 +629,11 @@ def _eval_exclusion(
         if _affirmed(cond_text, w) or _affirmed(med_text, w):
             return done(True, f"Exclusion term '{w}' present in record")
         if _notes_hit(ctx, w):
-            return done(True, f"Exclusion term '{w}' present in clinical note")
+            return done(
+                True,
+                f"Exclusion term '{w}' present in clinical note",
+                prov=("note", "medium"),
+            )
     return done(False, "No exclusion evidence in record")
 
 

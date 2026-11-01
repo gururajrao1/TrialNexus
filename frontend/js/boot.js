@@ -1,12 +1,21 @@
 /* Boot: tabs, snapshot, form wiring, auto-run all thirteen panels. */
 import { $, esc, fail, getJSON, postJSON } from "./api.js";
 import { loadDemo } from "./data.js";
-import { runAudit, runCohort, runSafety, runSites } from "./panels-core.js";
+import {
+  runAudit,
+  runCohort,
+  runOutcomes,
+  runRetention,
+  runSafety,
+  runSites,
+  runSweep,
+} from "./panels-core.js";
 import {
   loadDiversityDefaults,
   runDiversity,
   runExternal,
   runFinder,
+  runForensics,
   runHistory,
   runMonitoring,
   runStartup,
@@ -64,14 +73,17 @@ $("externalForm").addEventListener("submit", (e) => { e.preventDefault(); runExt
 $("twinsForm").addEventListener("submit", (e) => { e.preventDefault(); runTwins(); });
 $("mcodeForm").addEventListener("submit", (e) => { e.preventDefault(); runMcode(); });
 $("validityForm").addEventListener("submit", (e) => { e.preventDefault(); runValidity(); });
+$("sweepForm").addEventListener("submit", (e) => { e.preventDefault(); runSweep(); });
+$("retentionForm").addEventListener("submit", (e) => { e.preventDefault(); runRetention(); });
+$("outcomesForm").addEventListener("submit", (e) => { e.preventDefault(); runOutcomes(); });
 
 /* Boot: snapshot, prefill, then auto-run all thirteen panels. */
 loadSnapshot().then(loadDemo).then(loadDiversityDefaults).then(() => {
   runAudit(); runSites(); runDiversity(); runStartup(); runMonitoring(); runFinder(); runExternal();
-  runTwins(); runMcode(); runValidity();
-  Promise.all([runCohort(), runSafety()]).then(runHistory);
+  runTwins(); runMcode(); runValidity(); runSweep(); runRetention();
+  Promise.all([runCohort(), runSafety()]).then(() => { runHistory(); runForensics(); });
 }).catch(() => {
-  for (const id of ["auditResult", "sitesResult", "cohortResult", "safetyResult", "diversityResult", "historyResult", "startupResult", "monitoringResult", "finderResult", "externalResult", "twinsResult", "mcodeResult", "validityResult"]) {
+  for (const id of ["auditResult", "sitesResult", "cohortResult", "safetyResult", "diversityResult", "historyResult", "startupResult", "monitoringResult", "finderResult", "externalResult", "twinsResult", "mcodeResult", "validityResult", "sweepResult", "retentionResult", "forensicResult", "outcomesResult"]) {
     $(id).innerHTML = '<div class="error">API unreachable. Start it with: uvicorn backend.app:app --port 8000</div>';
   }
 });
