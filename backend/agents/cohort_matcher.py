@@ -276,6 +276,11 @@ def _check_numeric(
         exp_n, exp_rec = _to_ul(exp_f, crit.get("unit"))
         if act_rec or exp_rec:
             actual, exp_f = act_n, exp_n
+        elif label == "Creatinine":
+            act_c, act_ok = _to_mgdl(actual, lab.get("unit"))
+            exp_c, exp_ok = _to_mgdl(exp_f, crit.get("unit"))
+            if act_ok and exp_ok:
+                actual, exp_f = act_c, exp_c
         ok = _cmp(crit["operator"], actual, exp_f)
     ev = (
         f"{label} was {lab['value']} {lab.get('unit') or ''} "
@@ -287,6 +292,151 @@ def _check_numeric(
 def _content_words(text: str) -> list[str]:
     words = re.findall(r"[a-z0-9\-]+", text.lower())
     return [w for w in words if len(w) > 4 and w not in STOPWORDS]
+
+
+LAB_KEYS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("neutrophil", "anc"), "ANC"),
+    (("platelet",), "Platelets"),
+    (("hemoglobin", "hb"), "Hemoglobin"),
+    (("creatinine",), "Creatinine"),
+    (("crcl", "creatinine clearance"), "CrCl"),
+    (("alt", "alanine"), "ALT"),
+    (("ast", "aspartate"), "AST"),
+    (("bilirubin",), "Bilirubin"),
+    (("a1c", "hba1c", "hemoglobin a1c"), "HbA1c"),
+)
+
+
+def _eval_sub_rules(
+    subs: list[dict[str, Any]],
+    crit: dict[str, Any],
+    ctx: dict[str, Any],
+    done: Any,
+) -> dict[str, Any]:
+    """Multi-threshold lines: every sub-rule evaluated, combined by logic."""
+    logic = crit.get("rule_logic", "all")
+    results = []
+    for s in subs:
+        var = str(s.get("variable", ""))
+        keys = next((k for k, _lbl in LAB_KEYS if _has(var.lower(), *k)), None)
+        label = next((lbl for k, lbl in LAB_KEYS if k == keys), var) if keys else var
+        lab = _find_lab(ctx["obs"], *keys) if keys else None
+        sub = {
+            "operator": s.get("operator"),
+            "value": s.get("value"),
+            "unit": s.get("unit"),
+        }
+        results.append(_check_numeric(sub, lab, label or "lab"))
+    ev = "; ".join(e for _, e, _ in results)
+    if logic == "any":
+        if any(ok for ok, _, _ in results):
+            return done(True, ev)
+        if any(m for _, _, m in results):
+            return done(False, ev, True)
+        return done(False, ev)
+    if all(ok for ok, _, _ in results):
+        return done(True, ev)
+    if any(not ok and not m for ok, _, m in results):
+        return done(False, ev)
+    return done(False, ev, True)
+
+
+def _to_mgdl(value: float, unit: str | None) -> tuple[float, bool]:
+    """Creatinine unit normalization to mg/dL. Returns (value, recognized)."""
+    u = (unit or "").lower().replace(" ", "").replace("µ", "u").replace("μ", "u")
+    if u in ("mg/dl", "mgdl"):
+        return value, True
+    if u in ("umol/l", "umol", "micromol/l"):
+        return value / 88.4, True
+    if u in ("mmol/l", "mmol"):
+        return value * 11.312, True
+    return value, False
+
+
+def dated_medications(bundle: dict[str, Any]) -> list[dict[str, Any]]:
+    """Medication statements with parsed dates (None when undated)."""
+    out = []
+    for r in _entries(bundle):
+        if r.get("resourceType") not in ("MedicationStatement", "MedicationRequest"):
+            continue
+        med = r.get("medicationCodeableConcept", {})
+        text = ""
+        if isinstance(med, dict):
+            text = str(med.get("text") or "")
+            if not text:
+                for c in med.get("coding", []) or []:
+                    if isinstance(c, dict) and c.get("display"):
+                        text = str(c["display"])
+                        break
+        raw = r.get("effectiveDateTime") or (r.get("effectivePeriod", {}) or {}).get(
+            "start"
+        )
+        when = None
+        if raw:
+            try:
+                when = date.fromisoformat(str(raw)[:10])
+            except ValueError:
+                when = None
+        if text:
+            out.append({"text": text, "date": when})
+    return out
+
+
+def _eval_tki_washout(
+    terms: tuple[str, ...],
+    bundle: dict[str, Any],
+    ctx: dict[str, Any],
+    window: int,
+    done: Any,
+) -> dict[str, Any]:
+    """Prior-TKI exclusion with real date math against the window."""
+    ref = ctx.get("ref_date") or REF_DATE
+    hits = [
+        m for m in dated_medications(bundle) if _affirmed(m["text"].lower(), *terms)
+    ]
+    for h in hits:
+        if h["date"] is None:
+            return done(
+                True,
+                f"TKI '{h['text']}' undated; conservatively within {window}d window",
+            )
+    dated = [(h["text"], (ref - h["date"]).days) for h in hits if h["date"] is not None]
+    within = [(t, d) for t, d in dated if d <= window]
+    if within:
+        t, d = min(within, key=lambda x: x[1])
+        return done(True, f"TKI '{t}' {max(d, 0)} days before Day 1 (window {window}d)")
+    if dated:
+        t, d = min(dated, key=lambda x: x[1])
+        return done(False, f"Last TKI '{t}' {d}d ago; outside {window}d window")
+    if not ctx.get("meds", []):
+        return done(False, "No medication history in record", True)
+    return done(False, "No third-generation EGFR TKI in medication list")
+
+
+def _negated_window(low: str, pos: int, width: int = 30) -> bool:
+    return any(n in low[max(0, pos - width) : pos] for n in NEGATIONS)
+
+
+KPS_TO_ECOG = ((100, 0), (80, 1), (60, 2), (40, 3), (20, 4), (0, 5))
+
+
+def _note_performance(notes: list[dict[str, str]]) -> tuple[int, str] | None:
+    """ECOG/KPS documented only in notes. Returns (ecog, snippet)."""
+    for n in notes:
+        low = n["text"].lower()
+        m = re.search(r"\becog\b[^0-9]{0,10}(\d)", low) or re.search(
+            r"performance status[^0-9]{0,10}(\d)", low
+        )
+        if m and not _negated_window(low, m.start()):
+            i = m.start()
+            return int(m.group(1)), n["text"][max(0, i - 20) : m.end() + 10].strip()
+        k = re.search(r"\bk(?:arnofsky|ps)\b[^0-9]{0,10}(\d+)", low)
+        if k and not _negated_window(low, k.start()):
+            kv = int(k.group(1))
+            eco = next(e for t, e in KPS_TO_ECOG if kv >= t)
+            i = k.start()
+            return eco, n["text"][max(0, i - 20) : k.end() + 10].strip()
+    return None
 
 
 def _eval_inclusion(
@@ -326,19 +476,19 @@ def _eval_inclusion(
         return done(False, f"Age {age} violates {failed}")
     if _has(blob, "ecog", "performance", "karnofsky"):
         lab = _find_lab(obs, "ecog", "performance", "karnofsky")
+        noted = None
+        if lab is None or lab.get("value") is None:
+            noted = _note_performance(ctx.get("notes", []))
+            if noted is not None:
+                lab = {"value": noted[0], "unit": None, "date": None}
         passed, ev, miss = _check_numeric(crit, lab, "ECOG")
+        if noted is not None and not miss:
+            ev = f"ECOG {noted[0]} from clinical note ({noted[1]}); " + ev
         return done(passed, ev, miss)
-    for keys, label in (
-        (("neutrophil", "anc"), "ANC"),
-        (("platelet",), "Platelets"),
-        (("hemoglobin", "hb"), "Hemoglobin"),
-        (("creatinine",), "Creatinine"),
-        (("crcl", "creatinine clearance"), "CrCl"),
-        (("alt", "alanine"), "ALT"),
-        (("ast", "aspartate"), "AST"),
-        (("bilirubin",), "Bilirubin"),
-        (("a1c", "hba1c", "hemoglobin a1c"), "HbA1c"),
-    ):
+    subs = crit.get("sub_rules") or []
+    if len(subs) > 1:
+        return _eval_sub_rules(subs, crit, ctx, done)
+    for keys, label in LAB_KEYS:
         if cat not in ("Histology", "Biomarker") and _has(blob, *keys):
             passed, ev, miss = _check_numeric(crit, _find_lab(obs, *keys), label)
             return done(passed, ev, miss)
@@ -395,6 +545,9 @@ def _eval_exclusion(
             "tki",
             "tyrosine kinase",
         )
+        window = crit.get("washout_days")
+        if window:
+            return _eval_tki_washout(tki, bundle, ctx, window, done)
         for m in meds:
             if _affirmed(m.lower(), *tki):
                 return done(True, f"Prior TKI documented: {m}")
@@ -465,6 +618,7 @@ def evaluate_patient(
         "sex": patient_sex(bundle),
         "patient_text": " ".join(conds + [o["text"] for o in obs]).lower(),
         "notes": clinical_notes(bundle),
+        "ref_date": ref_date,
     }
     inc_evals = [
         _eval_inclusion(c, bundle, ctx) for c in criteria.get("inclusion_criteria", [])

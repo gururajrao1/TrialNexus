@@ -158,6 +158,66 @@ def _parse_rule(text: str) -> tuple[str, str, Any, str | None]:
     return text[:60].strip(), "==", "present", None
 
 
+WASHOUT_RE = re.compile(r"within\s+(\d+)\s*(day|week|month|year)s?", re.IGNORECASE)
+_UNIT_DAYS = {"day": 1, "week": 7, "month": 30, "year": 365}
+
+
+def _washout_days(text: str) -> int | None:
+    """Prior-therapy window in days, e.g. 'within 28 days' -> 28."""
+    m = WASHOUT_RE.search(text)
+    if not m:
+        return None
+    return int(m.group(1)) * _UNIT_DAYS[m.group(2).lower()]
+
+
+def _parse_rules(text: str) -> tuple[list[dict[str, Any]], str]:
+    """Every numeric comparison in the line, in text order.
+
+    Returns (rules, logic) where logic is 'any' when an 'or' joins the
+    rules ('creatinine <= 1.5x ULN or CrCl >= 50') and 'all' otherwise.
+    """
+    found: list[tuple[int, int, int, str, str, Any, str | None]] = []
+    consumed: list[tuple[int, int]] = []
+    for sci in SCI_RE.finditer(text):
+        found.append(
+            (
+                sci.start(),
+                sci.start("op"),
+                sci.end("op"),
+                sci.group("var").strip(" ."),
+                sci.group("op"),
+                float(sci.group("val")),
+                "x10^9/L",
+            )
+        )
+        consumed.append(sci.span())
+    for m in COMPARE_RE.finditer(text):
+        if any(a <= m.start() < b for a, b in consumed):
+            continue
+        raw_val = m.group("val")
+        val: Any = float(raw_val) if "." in raw_val else int(raw_val)
+        found.append(
+            (
+                m.start(),
+                m.start("op"),
+                m.end("op"),
+                m.group("var").strip(" ."),
+                m.group("op"),
+                val,
+                (m.group("unit") or "").strip() or None,
+            )
+        )
+    found.sort(key=lambda r: r[0])
+    # Conjunction between the first and last operator: 'or' -> any, else all.
+    window = text[found[0][2] : found[-1][1]] if len(found) > 1 else ""
+    logic = "any" if re.search(r"\bor\b", window, re.IGNORECASE) else "all"
+    rules = [
+        {"variable": v, "operator": o, "value": val, "unit": u}
+        for _, _, _, v, o, val, u in found
+    ]
+    return rules, logic
+
+
 def _split_sections(raw: str) -> tuple[list[str], list[str]]:
     inc: list[str] = []
     exc: list[str] = []
@@ -306,6 +366,7 @@ def parse_protocol(raw_text: str) -> dict[str, Any]:
     inclusions: list[dict[str, Any]] = []
     for i, text in enumerate(inc_raw, 1):
         var, op, val, unit = _parse_rule(text)
+        sub_rules, logic = _parse_rules(text)
         inclusions.append(
             {
                 "id": f"INC-{i:02d}",
@@ -316,11 +377,15 @@ def parse_protocol(raw_text: str) -> dict[str, Any]:
                 "value": val,
                 "unit": unit,
                 "flexibility_rating": _flexibility(text),
+                "sub_rules": sub_rules,
+                "rule_logic": logic,
+                "washout_days": _washout_days(text),
             }
         )
     exclusions: list[dict[str, Any]] = []
     for i, text in enumerate(exc_raw, 1):
         var, op, val, unit = _parse_rule(text)
+        sub_rules, logic = _parse_rules(text)
         exclusions.append(
             {
                 "id": f"EXC-{i:02d}",
@@ -331,6 +396,9 @@ def parse_protocol(raw_text: str) -> dict[str, Any]:
                 "value": val,
                 "unit": unit,
                 "flexibility_rating": _flexibility(text),
+                "sub_rules": sub_rules,
+                "rule_logic": logic,
+                "washout_days": _washout_days(text),
             }
         )
     flaws = _audit_operations(raw_text, inc_raw, exc_raw)

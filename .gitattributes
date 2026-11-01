@@ -1,0 +1,3 @@
+# Consistent LF line endings on every platform. Prevents CRLF churn
+# in working copies (which previously broke exact-match edits).
+* text=auto eol=lf
