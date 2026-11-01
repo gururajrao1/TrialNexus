@@ -4,7 +4,7 @@
 
 ```bat
 python seed_data.py
-python -m unittest discover -s tests        :: fast offline suite (50 tests)
+python -m unittest discover -s tests        :: fast offline suite (60 tests)
 uvicorn backend.app:app --port 8000         :: leave running
 python tests/test_e2e_live.py               :: live problem-statement checks
 ```
@@ -188,6 +188,21 @@ success odds ignore what similar trials actually achieved.
 - Proves: amendment leverage quantified, failure drivers ranked,
   dropout risk scored, and benchmarks grounded in registry reality.
 
+## Scenario 15 — Gap-fill: PDF, PubMed, token
+
+Problem: protocols arrive as PDFs, safety calls need literature
+grounding, and a demo server on a shared network needs a lock.
+
+- Protocol audit tab: Audit PDF with any text-based protocol PDF.
+  Expect a `PDF-<name>` id plus the full audit render. A scanned
+  image-only PDF fails with a plain message, not a traceback.
+- Safety triage tab: Literature → Search. Expect hit counts plus
+  linked PMID cards with a live/cache/offline-fallback chip.
+- Token: restart the server with `TRIALNEXUS_API_TOKEN` set; expect
+  the UI to prompt once, then work. Unset it to return to open mode.
+- Proves: the original-file path, the literature path, and the lock
+  all work — and degrade honestly.
+
 ## Features × data map
 
 | Feature | Input data | What it does | Output |
@@ -218,6 +233,9 @@ success odds ignore what similar trials actually achieved.
 | Forecast priors | `site_metrics` history | Empirical-Bayes accrual priors replace assumptions | `observed`/`provided` site tags |
 | Outcome benchmark | CT.gov completed trials (cached) | Counts, results rate, median enrollment, outcomes | Benchmark panel + source chip |
 | Match provenance | Each criterion evaluation | match_type + confidence via `rules-v1` backend | Provenance on every evaluation |
+| PDF ingestion | Uploaded PDF (base64 JSON) | pypdf text extract (30pp/120Kch caps) → standard audit | `PDF-<name>` protocol + full audit |
+| PubMed literature | Search term | Entrez esearch + esummary, disk-cached, offline-safe | Hit count + PMID cards + source chip |
+| Token auth | `TRIALNEXUS_API_TOKEN` env | Bearer guard on `/api/*` (health/UI/docs open) | 401 without token, UI prompts once |
 | Snapshot + demo feed | SQLite + seed files | Counts + prefill payloads for the UI | `/api/snapshot`, `/api/demo-data` |
 
 ## Data catalog (every file earns its place)

@@ -18,6 +18,7 @@ const IDS = new Set([
   "retentionBundle", "retentionResult", "retentionForm",
   "outcomesCondition", "outcomesPhase", "outcomesResult", "outcomesForm",
   "forensicResult",
+  "pdfFile", "pdfForm", "pubmedTerm", "pubmedResult", "pubmedForm",
 ]);
 for (const t of TABS) { IDS.add("tabbtn-" + t); IDS.add("tab-" + t); IDS.add(t + "Form"); }
 

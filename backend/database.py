@@ -165,6 +165,21 @@ def save_protocol_audit(
         conn.close()
 
 
+def delete_protocol(protocol_id: str, db_path: Path | None = None) -> bool:
+    """Remove a protocol and its run history. Idempotent; True if a row died."""
+    conn = get_connection(db_path)
+    try:
+        conn.execute(
+            "DELETE FROM patient_evaluations WHERE protocol_id = ?", (protocol_id,)
+        )
+        conn.execute("DELETE FROM safety_queries WHERE protocol_id = ?", (protocol_id,))
+        cur = conn.execute("DELETE FROM protocols WHERE id = ?", (protocol_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 def upsert_site(site: dict[str, Any], db_path: Path | None = None) -> None:
     conn = get_connection(db_path)
     try:

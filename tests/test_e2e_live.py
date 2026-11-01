@@ -4,6 +4,7 @@ Start the server first:  uvicorn backend.app:app --port 8000
 Run from the project root:  python tests/test_e2e_live.py
 """
 
+import base64
 import json
 import sys
 import time
@@ -39,6 +40,55 @@ def post(path, payload, timeout=30):
         return json.load(r)
 
 
+def delete(path):
+    req = urllib.request.Request(BASE + path, method="DELETE")
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return json.load(r)
+
+
+def make_pdf_bytes(text):
+    """Minimal single-page PDF (mirrors tests/test_ingest.py builder)."""
+    safe = text.encode("latin-1", errors="replace").decode("latin-1")
+    safe = safe.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+    ops = ["BT /F1 12 Tf 72 720 Td"]
+    for i, line in enumerate(safe.splitlines()):
+        if i:
+            ops.append("0 -14 Td")
+        ops.append("(%s) Tj" % (line or " "))
+    ops.append("ET")
+    stream = "\n".join(ops).encode("latin-1")
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]"
+        b" /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Length "
+        + str(len(stream)).encode()
+        + b" >>\nstream\n"
+        + stream
+        + b"\nendstream",
+    ]
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for i, body in enumerate(objs, start=1):
+        offsets.append(len(out))
+        out += str(i).encode() + b" 0 obj\n" + body + b"\nendobj\n"
+    xref_at = len(out)
+    out += b"xref\n0 " + str(len(objs) + 1).encode() + b"\n"
+    out += b"0000000000 65535 f \n"
+    for off in offsets:
+        out += str(off).zfill(10).encode() + b" 00000 n \n"
+    out += (
+        b"trailer\n<< /Size "
+        + str(len(objs) + 1).encode()
+        + b" /Root 1 0 R >>\nstartxref\n"
+        + str(xref_at).encode()
+        + b"\n%%EOF"
+    )
+    return bytes(out)
+
+
 def wait_for_api():
     for _ in range(30):
         try:
@@ -57,10 +107,15 @@ def main():
             + " — start it: uvicorn backend.app:app --port 8000"
         )
         return 2
+    delete("/api/protocols/PDF-NSCLC-PROTOCOL")  # crash-leftover cleanup
     status, html = get("/")
     check(
         "UI serves with workflow tabs",
-        status == 200 and "stepper" in html and "tab-safety" in html,
+        status == 200
+        and "stepper" in html
+        and "tab-safety" in html
+        and "pdfForm" in html
+        and "pubmedForm" in html,
     )
     snap = json.loads(get("/api/snapshot")[1])
     check(
@@ -346,6 +401,42 @@ def main():
             for e in r["inclusion_evaluations"] + r["exclusion_evaluations"]
         ),
         by_id["patient-001"]["inclusion_evaluations"][0]["provenance"],
+    )
+
+    # 14. Gap-fill: PDF ingest + PubMed literature
+    with open("data/raw/protocols/protocol_oncology_phase3.txt") as f:
+        proto_text = f.read()
+    pdf_b64 = base64.b64encode(make_pdf_bytes(proto_text)).decode()
+    pa = post(
+        "/api/audit-pdf",
+        {"filename": "nsclc_protocol.pdf", "pdf_base64": pdf_b64},
+        timeout=120,
+    )
+    check(
+        "PDF audit matches text audit",
+        pa["protocol_id"] == "PDF-NSCLC-PROTOCOL"
+        and len(pa["inclusion_criteria"]) == 5
+        and len(pa["exclusion_criteria"]) == 4
+        and pa["pdf_source"]["pages"] >= 1,
+        (pa["protocol_id"], pa["pdf_source"]["pages"]),
+    )
+    pb = json.loads(
+        get("/api/pubmed?term=EGFR%20inhibitor%20hepatotoxicity&retmax=3")[1]
+    )
+    check(
+        "pubmed returns literature shape",
+        pb["source"] in ("live", "cache", "offline-fallback")
+        and isinstance(pb["count"], int)
+        and isinstance(pb["articles"], list)
+        and all("pmid" in art for art in pb["articles"]),
+        (pb["source"], pb["count"]),
+    )
+    rm = delete("/api/protocols/" + pa["protocol_id"])
+    snap2 = json.loads(get("/api/snapshot")[1])
+    check(
+        "PDF protocol deletes cleanly",
+        rm["deleted"] is True and snap2["protocols"] == 3,
+        snap2["protocols"],
     )
 
     print(f"FAILURES: {len(FAILURES)}")

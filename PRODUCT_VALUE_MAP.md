@@ -48,7 +48,7 @@ and the product value it adds (problem → outcome, with the evidence behind it)
 ## 6. Static life-sciences UI
 
 - Deliverables: `frontend/` (index.html, styles.css, app.js, zero deps),
-  served at `/`; 10 auto-running tabs; snapshot metrics; `/docs` retained.
+  served at `/`; 13 auto-running tabs; snapshot metrics; `/docs` retained.
 - Value: one screen per role, data visible on load, no installs beyond the
   API. Clinical styling (teal, badges, chips, meters) reads as a real
   product, not a notebook demo.
@@ -124,17 +124,75 @@ and the product value it adds (problem → outcome, with the evidence behind it)
 
 ## 15. Test packs (offline + live + guide)
 
-- Deliverables: `tests/test_smoke.py` (14 tests, stdlib-only),
-  `tests/test_e2e_live.py` (24 live checks), `TEST_GUIDE.md` (12 scenarios),
-  this map, `DELIVERY_STATUS.md`, `README.md`.
+- Deliverables: `tests/` (50 unit tests incl. `STrackTests` ×11,
+  stdlib-only), `tests/test_e2e_live.py` (36 live checks),
+  `TEST_GUIDE.md` (14 scenarios), this map, `DELIVERY_STATUS.md`,
+  `README.md`.
 - Value: every problem-statement claim is executable proof, not a slide.
   A buyer, auditor, or new hire can verify the whole product in minutes.
+
+## 16. Relaxation sweep (amendment leverage)
+
+- Deliverables: `backend/agents/relaxation_sweep.py`;
+  `POST /api/relax-sweep`; Cohort-tab sweep panel; scenario 14.
+- Value: 45% of amendments are avoidable, mostly eligibility relaxations —
+  but teams negotiate blind. Per-threshold ladders + marginal flips name
+  exactly which criterion to relax and how many patients each step buys.
+
+## 17. Failure forensics (screen-failure drivers)
+
+- Deliverables: `backend/agents/failure_forensics.py`;
+  `GET /api/forensics`; History-tab forensics table; scenario 14.
+- Value: turns anecdote ("we keep failing on renal") into ranked rates
+  over every stored run — the evidence base for amendment discussions
+  and pre-screening fixes.
+
+## 18. Retention-risk scorer
+
+- Deliverables: `backend/agents/retention.py` (burden + frailty proxies,
+  remote-visit what-if); `POST /api/retention`; Cohort-tab panel.
+- Value: dropout replacement costs ~$6K+ per patient and slips timelines.
+  Scores discontinuation risk up front, with a what-if showing which
+  remote conversions actually move the needle.
+
+## 19. Registry benchmark + trust signals
+
+- Deliverables: `fetch_ctgov_outcomes` + `GET /api/outcome-benchmark`
+  (Audit tab); AE enrichment (temporality/attribution/certainty);
+  empirical-Bayes forecast priors (`use_site_history`); per-evaluation
+  provenance (`rules-v1`).
+- Value: plans grounded in what similar trials achieved (counts, results
+  rate, median enrollment), forecasts fitted to measured site history,
+  and every automated judgment carrying its evidence grade — the
+  difference between a black box and an auditable one.
+
+## How it adds up
+
+## 20. Original-file ingest + literature grounding
+
+- Deliverables: `backend/agents/pdf_ingest.py` + `POST /api/audit-pdf`
+  (base64 JSON, caps, plain-language failures); `backend/agents/pubmed.py`
+  + `GET /api/pubmed` (Entrez, cached, offline-safe); Audit-tab upload,
+  Safety-tab literature box; scenario 15.
+- Value: protocols arrive as PDFs, not .txt — refusing them pushes work
+  back on the user. And safety calls without literature grounding are
+  just opinions; linked PMID cards make them defensible.
+
+## 21. Demo-grade hardening (token + pixel proof)
+
+- Deliverables: `backend/auth.py` (env-gated Bearer guard, UI prompts
+  once); `tests/test_ui_pixel.py` + CI Chromium job with screenshot
+  artifact.
+- Value: a shareable demo URL needs a lock, and "it renders" needs proof
+  better than a DOM stub. One env var secures the API; every push now
+  proves the app boots in a real browser.
 
 ## How it adds up
 
 Design (1, 9, 10) → select (2, 11) → enroll (3, 13, 7) → monitor (4, 12) →
-document (8, 14), with (5) as the free-to-run foundation, (6) as the single
-surface, and (15) as the proof layer. Each feature consumes the last one's
-output: audited criteria feed matching, matches feed diversity and history,
-history feeds monitoring. That compounding — not any single tab — is the
-product: a trial operations loop that runs end to end, offline, for $0.
+document (8, 14, 20) → optimize (16, 17, 18, 19), with (5) as the
+free-to-run foundation, (6) as the single surface, and (15, 21) as the
+proof layer. Each feature consumes the last one's output: audited criteria
+feed matching, matches feed diversity and history, history feeds forensics
+and monitoring. That compounding — not any single tab — is the product: a
+trial operations loop that runs end to end, offline, for $0.

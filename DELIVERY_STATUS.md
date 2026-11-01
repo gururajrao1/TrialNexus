@@ -16,7 +16,7 @@ Session constraints added on top: **zero cost** (no OpenRouter / Nemotron / NIM
 at all), **storage-light** (tiny repo, split dependencies, no model downloads),
 built directly in this folder (no background agents after the direct-build switch).
 
-## What is done (111 files, ≈ 1 MB working tree; SQLite DB generated)
+## What is done (122 files, ≈ 1 MB tracked; DB + caches generated and ignored)
 
 | Cookbook item | Status | Delivered as |
 |---|---|---|
@@ -65,6 +65,10 @@ built directly in this folder (no background agents after the direct-build switc
 | Forecast priors (S5) | Done | `site_priors_from_metrics` + `use_site_history`; observed/provided tags |
 | Outcome benchmark (S6) | Done | `fetch_ctgov_outcomes` + `/api/outcome-benchmark`; live/cache/fallback chips |
 | Match provenance (S7) | Done | Per-evaluation match_type/confidence via `ENTAILMENT_BACKEND=rules-v1` |
+| PDF ingestion (G1) | Done | `pdf_ingest.py` + `/api/audit-pdf`; base64 JSON, caps, `PDF-<name>` ids |
+| PubMed literature (G2) | Done | `pubmed.py` + `/api/pubmed`; Entrez, disk cache, offline fallback |
+| Token auth (G3) | Done | `backend/auth.py` middleware; env-gated, UI prompts once per session |
+| Pixel proof (G4) | Done | `tests/test_ui_pixel.py` + CI Chromium job + screenshot artifact |
 | UI polish | Done | Portfolio stats, site-query fields, Yes/No cells — no stray JSON |
 | Value map | Done | `PRODUCT_VALUE_MAP.md`: per-feature deliverables × product value |
 | Smoke tests | Done, green | `tests/test_smoke.py`, stdlib unittest, 5/5 passing |
@@ -87,6 +91,10 @@ built directly in this folder (no background agents after the direct-build switc
   20/20 unit + 12/12 e2e on mvp; parity exit 0
 - S-track: ruff clean; 50/50 unit (incl. `STrackTests` ×11) + 36/36
   e2e + UI smoke on main; sweep e2e call hardened to 120 s timeout
+- Gap-fill: ruff clean; 60 unit (59 pass + 1 CI-only browser skip,
+  incl. `test_ingest` ×9) + 39/39 e2e + UI smoke on main; PubMed
+  verified live (113 hits), PDF audit round-trips to identical 5/4,
+  suite repeatable via crashing-run cleanup + delete check
 
 ## Bugs found and fixed during verification
 
@@ -110,9 +118,8 @@ built directly in this folder (no background agents after the direct-build switc
 
 ## Not done / remaining
 
-- PubMed hookup (CT.gov live lookup is now wired into Sites; PubMed was lower value for the demo path).
-- PDF protocol ingestion (txt/md only today).
-- No auth / multi-user / deployment hardening (single-user local tool).
+- Per-user accounts / roles (single shared token only).
+- Deployment hardening beyond localhost + token (single-user local tool).
 
 ## Suggested next steps (domain)
 

@@ -7,20 +7,44 @@ export function esc(s) {
   }[c]));
 }
 
-export async function getJSON(path) {
-  const r = await fetch(path);
+function authHeaders(extra) {
+  const h = Object.assign({}, extra);
+  try {
+    const t = sessionStorage.getItem("tnx_token");
+    if (t) h["Authorization"] = "Bearer " + t;
+  } catch (e) { /* storage unavailable: send unauthenticated */ }
+  return h;
+}
+
+function rememberToken() {
+  try {
+    if (sessionStorage.getItem("tnx_token")) return false;
+    const t = window.prompt("This server requires an API token:");
+    if (t) sessionStorage.setItem("tnx_token", t.trim());
+    return !!t;
+  } catch (e) { return false; }
+}
+
+async function guarded(path, init, retry) {
+  const r = await fetch(path, init);
+  if (r.status === 401 && !retry && rememberToken()) {
+    init.headers = authHeaders(init.headers);
+    return guarded(path, init, true);
+  }
   if (!r.ok) throw new Error(path + " → HTTP " + r.status);
   return r.json();
 }
 
+export async function getJSON(path) {
+  return guarded(path, { headers: authHeaders() }, false);
+}
+
 export async function postJSON(path, payload) {
-  const r = await fetch(path, {
+  return guarded(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(payload),
-  });
-  if (!r.ok) throw new Error(path + " → HTTP " + r.status);
-  return r.json();
+  }, false);
 }
 
 export function fail(el, err) {

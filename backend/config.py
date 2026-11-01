@@ -22,6 +22,8 @@ AE_STREAM = QUERIES_DIR / "adverse_events_stream.json"
 OUTPUTS_DIR = DATA_DIR / "outputs"
 CTGV_CACHE = OUTPUTS_DIR / "ctgov_cache.json"
 CTGV_CACHE_MAX_ENTRIES = 200
+PUBMED_CACHE = OUTPUTS_DIR / "pubmed_cache.json"
+PUBMED_CACHE_MAX_ENTRIES = 200
 N2C2_DATA_DIR = DATA_DIR / "n2c2"
 N2C2_FIXTURE = ROOT / "tests" / "fixtures" / "n2c2_mini.json"
 

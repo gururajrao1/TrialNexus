@@ -18,6 +18,7 @@ from backend.agents.external_control import build_external_control
 from backend.agents.failure_forensics import forensic_report
 from backend.agents.kri_monitor import portfolio_kris
 from backend.agents.protocol_auditor import parse_protocol
+from backend.agents.pubmed import fetch_pubmed
 from backend.agents.retention import retention_risk
 from backend.agents.site_scout import fetch_ctgov_outcomes
 from backend.agents.startup_tracker import STAGES, startup_report
@@ -286,3 +287,10 @@ def outcome_benchmark(condition: str, phase: str = "") -> dict[str, Any]:
         return fetch_ctgov_outcomes(condition.strip(), phase.strip())
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"registry lookup failed: {exc}")
+
+
+@router.get("/api/pubmed")
+def pubmed_lookup(term: str, retmax: int = 5) -> dict[str, Any]:
+    if not term.strip():
+        raise HTTPException(status_code=400, detail="term is required")
+    return fetch_pubmed(term.strip(), retmax)

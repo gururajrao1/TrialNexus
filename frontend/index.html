@@ -50,6 +50,10 @@
       <label>Protocol ID <input id="auditPid" value="PROT-TNX-001" size="16"></label>
       <button type="submit">Run audit</button>
     </form>
+    <form id="pdfForm" class="controls">
+      <label>Protocol PDF <input id="pdfFile" type="file" accept=".pdf,application/pdf"></label>
+      <button type="submit">Audit PDF</button>
+    </form>
     <div id="auditResult" class="results"><p class="muted">Running…</p></div>
     <h3>Outcome benchmark (live registry)</h3>
     <form id="outcomesForm" class="controls">
@@ -102,6 +106,12 @@
       <button type="submit">Triage</button>
     </form>
     <div id="safetyResult" class="results"><p class="muted">Running…</p></div>
+    <h3>Literature (PubMed)</h3>
+    <form id="pubmedForm" class="controls">
+      <label>Term <input id="pubmedTerm" value="EGFR inhibitor hepatotoxicity" size="32"></label>
+      <button type="submit">Search</button>
+    </form>
+    <div id="pubmedResult" class="results"><p class="muted">Not searched yet — opt-in live lookup.</p></div>
   </section>
   <section id="tab-diversity" aria-labelledby="tabbtn-diversity" hidden>
     <form id="diversityForm" class="controls">

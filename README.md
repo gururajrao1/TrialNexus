@@ -27,10 +27,10 @@ $2.6B, much of it operational friction:
 
 | # | Tab | What it does |
 |---|---|---|
-| 1 | Protocol audit | I/E extraction, fragility, $ exposure, M11 export, burden, outlook, outcome benchmarks |
+| 1 | Protocol audit | I/E extraction, fragility, $ exposure, M11 export, burden, outlook, outcome benchmarks, PDF upload |
 | 2 | Site feasibility | Ranked sites + Poisson-Gamma forecast (optional observed-history priors) |
 | 3 | Cohort matching | FHIR patients → ELIGIBLE / INELIGIBLE / REVIEW_REQUIRED + sweep + retention |
-| 4 | Safety triage | AE triage with SAE flags, clocks, Signal column, enrichment, site queries |
+| 4 | Safety triage | AE triage with SAE flags, clocks, Signal column, enrichment, site queries, PubMed |
 | 5 | Diversity plan | Enrollment mix vs goals, gaps, focus areas |
 | 6 | History & export | Every run persisted; forensics; CSV downloads |
 | 7 | Study startup | Pipeline stages vs benchmark flags |
@@ -52,11 +52,11 @@ Prerequisite: Python 3.11+.
 :: 1. Open the trialnexus folder in VS Code, then in a terminal:
 python -m venv .venv
 .venv\Scripts\activate
-pip install -r requirements.txt        :: 4 packages: fastapi, uvicorn, pydantic, httpx
+pip install -r requirements.txt        :: 5 packages: fastapi, uvicorn, pydantic, httpx, pypdf
 
 :: 2. Seed the database and run the fast suite (no server needed):
 python seed_data.py
-python -m unittest discover -s tests  :: 50 tests, ~25 seconds
+python -m unittest discover -s tests  :: 60 tests, ~40 seconds (1 CI-only browser skip)
 
 :: 3. Start the API (leave running) and open the app:
 uvicorn backend.app:app --port 8000
@@ -64,7 +64,7 @@ uvicorn backend.app:app --port 8000
 
 - UI: http://localhost:8000/
 - Interactive API docs: http://localhost:8000/docs
-- Live checks: `python tests/test_e2e_live.py` (36 checks, needs the server)
+- Live checks: `python tests/test_e2e_live.py` (39 checks, needs the server)
 
 OneDrive tip: right-click `.venv` → "Free up space" to keep it on-demand.
 
@@ -89,19 +89,21 @@ browser (static ES modules, zero deps)
         │  same-origin JSON
         ▼
 FastAPI  backend/app.py  ── thin entrypoint: UI + static + routers
+        │                      (+ optional token guard via backend/auth.py)
         ├── routes/core.py     health, snapshot, demo-data, audit,
-        │                      score-sites, match-cohort, triage-safety
+        │                      audit-pdf, score-sites, match-cohort,
+        │                      triage-safety
         ├── routes/product.py  diversity, history/export, structure,
         │                      burden, startup, monitoring, finder,
         │                      external-control, forensics, retention,
-        │                      outcome-benchmark
+        │                      outcome-benchmark, pubmed
         └── routes/tier.py     outlook, forecast (+history), sweep, twins,
                                mcode, n2c2-status
         │
         ▼
 agents  backend/agents/*.py  ── pure deterministic functions
         │  (protocol_auditor, site_scout, cohort_matcher, safety_triage,
-        │   + 16 product/Tier/S modules; see Features)
+        │   + 18 product/Tier/S/G modules; see Features)
         ▼
 SQLite (WAL)  data/local_db/trialnexus_state.db  ── via backend/database.py
 config  backend/config.py  ── every path + cap in one place
@@ -131,7 +133,7 @@ trialnexus/
 │   ├── router.py                # ZeroCostRouter (optional Ollama probe)
 │   ├── database.py              # SQLite WAL layer (7 tables + schema_version)
 │   ├── routes/                  # core.py, product.py, tier.py
-│   └── agents/                  # 4 cookbook agents + 16 product/Tier/S modules
+│   └── agents/                  # 4 cookbook agents + 18 product/Tier/S/G modules
 ├── frontend/
 │   ├── index.html               # 13 tabs + snapshot + stepper
 │   ├── styles.css               # life-sciences theme
@@ -144,7 +146,7 @@ trialnexus/
 │   └── local_db/                # SQLite DB (generated; git-ignored)
 ├── tests/                       # test_smoke, test_tier12, test_e2e_live, fixtures
 ├── seed_data.py                 # DB init + seed (stdlib only)
-├── requirements.txt             # runtime: fastapi, uvicorn, pydantic, httpx
+├── requirements.txt             # runtime: fastapi, uvicorn, pydantic, httpx, pypdf
 ├── requirements-dev.txt         # dev only: ruff
 ├── pyproject.toml               # ruff config
 └── .github/workflows/ci.yml     # lint → seed → unit → e2e → parity
@@ -179,7 +181,8 @@ readability/complexity metrics (Flesch ease/grade, entity density).
   5 INC / 4 EXC rules, fragility **20.5 (Low)**, 1 flaw (Day 14 vs Day 16
   window clash), exposure **≈ $110,000**, grade ≈ 10.1.
 - **API:** `POST /api/audit-protocol/PROT-TNX-001` → full audit JSON
-  (also persists structured criteria for matching).
+  (also persists structured criteria for matching). PDF originals go
+  through §21 instead.
 - **Proof:** `ProtocolParseTest`, e2e `audit extracts 5 INC / 4 EXC`,
   `audit flags schedule flaw + cost exposure`,
   `audit carries readability complexity`.
@@ -470,6 +473,36 @@ patterns, with `live` / `cache` / `offline-fallback` source chips.
 - **Proof:** `STrackTests` outcomes ×1, e2e `outcome benchmark returns
   registry shape`.
 
+### 21. PDF protocol ingestion — audit the original file
+
+Extracts text from uploaded protocol PDFs (pypdf, capped at 30 pages /
+120K chars / 25 MB) and runs the standard audit over it — same rules,
+same JSON, stored under a `PDF-<name>` protocol id. Transported as
+base64 JSON, so no multipart dependency. Scanned-image PDFs without a
+text layer fail with a plain-language message, not a traceback.
+
+- **Try it:** Protocol audit tab → choose any text-based PDF → Audit
+  PDF. Expect the id set to `PDF-<name>` and the full audit render
+  (criteria, flaws, structure, burden, outlook) below.
+- **API:** `POST /api/audit-pdf`
+  `{filename, pdf_base64, protocol_id?}`.
+- **Proof:** `PdfIngestTests` ×3 (round-trip, non-PDF, empty),
+  `DeleteProtocolTests` ×1, e2e `PDF audit matches text audit`,
+  `PDF protocol deletes cleanly` (`DELETE /api/protocols/{id}`).
+
+### 22. PubMed literature — grounding for safety calls
+
+NCBI Entrez esearch + esummary lookup (no API key): hit counts plus
+PMID/title/journal/year cards with `live` / `cache` / `offline-fallback`
+source chips, disk-cached like the CT.gov lookups.
+
+- **Try it:** Safety triage tab → Literature → Search (prefilled with
+  an EGFR hepatotoxicity term). Expect hit counts plus linked PMID
+  cards, or an honest empty state offline.
+- **API:** `GET /api/pubmed?term=…&retmax=5`.
+- **Proof:** `PubMedTests` ×2 (offline parsers, never-crashes fetch),
+  e2e `pubmed returns literature shape`.
+
 ### Also: snapshot, demo feed, health
 
 - `GET /health` → `{"status": "healthy", "mode": "zero-cost-local"}`.
@@ -483,14 +516,14 @@ Three layers, cheapest first. Counts are for `main`
 (`mvp` runs the 4-agent subset: 20 unit + 12 e2e).
 
 ```bat
-:: Layer 1 — fast offline unit tests (no server): 50 tests
+:: Layer 1 — fast offline unit tests (no server): 60 tests (1 CI-only browser skip)
 python -m unittest discover -s tests
 
 :: Layer 2 — lint + format gate (dev only):
 ruff check backend tests seed_data.py
 ruff format --check backend tests seed_data.py
 
-:: Layer 3 — live problem-statement checks (server running): 36 checks
+:: Layer 3 — live problem-statement checks (server running): 39 checks
 uvicorn backend.app:app --port 8000     :: separate terminal, leave running
 python tests/test_e2e_live.py          :: prints PASS/FAIL per check + FAILURES: 0
 ```
@@ -507,7 +540,7 @@ Manual testing per feature is covered above (each feature's **Try it**);
 
 | Branch | Contents | Tests |
 |---|---|---|
-| `main` | Full product: everything in this README | 50 unit + 36 e2e |
+| `main` | Full product: everything in this README | 60 unit + 39 e2e |
 | `mvp` | Cookbook core: 4 agents, 8 endpoints, 4-tab UI | 20 unit + 12 e2e |
 
 Rules: `main` evolves freely; `mvp` stays lean — never merge `main`
@@ -520,7 +553,7 @@ into it. Shared core fixes travel by checkout from `main`
 |---|---|
 | Repo working tree (code + seeds + docs) | ≈ 1 MB |
 | SQLite DB after seeding | < 200 KB (generated; git-ignored) |
-| CT.gov cache | capped at 200 entries, oldest forgotten first |
+| CT.gov + PubMed caches | capped at 200 entries each, oldest forgotten first |
 | Twins / simulations | in-memory only, never written to disk |
 | Datasets downloaded | none (n2c2 real data is user-supplied, optional) |
 | Core `.venv` (4 packages) | ~120 MB (only install cost) |
@@ -529,9 +562,16 @@ into it. Shared core fixes travel by checkout from `main`
 ## Configuration
 
 All in `backend/config.py`: filesystem paths (DB, FHIR, protocols,
-frontend), `CTGV_CACHE_MAX_ENTRIES = 200`, `N2C2_DATA_DIR`, and
+frontend), `CTGV_CACHE_MAX_ENTRIES = 200`,
+`PUBMED_CACHE_MAX_ENTRIES = 200`, `N2C2_DATA_DIR`, and
 `SCHEMA_VERSION` (bump when tables change; `init_db` stamps fresh and
 old databases automatically).
+
+Optional API token: set `TRIALNEXUS_API_TOKEN` before starting the
+server and every `/api/*` call needs
+`Authorization: Bearer <token>` (`/health`, `/`, `/docs` stay open).
+Unset = fully open, as before. The UI prompts for the token once per
+session when the server demands it.
 
 ## Troubleshooting
 
@@ -540,6 +580,7 @@ old databases automatically).
 | `API offline` pill / e2e "not reachable" | Start the server from `trialnexus/`: `uvicorn backend.app:app --port 8000` |
 | Port 8000 busy | A stale server holds it — stop that python process, then start again |
 | Match returns 400 "not audited yet" | Run the protocol audit once first (UI does this automatically) |
+| API returns 401 "API token required" | Server was started with `TRIALNEXUS_API_TOKEN` — send it as a Bearer token (UI prompts once) |
 | Counts look stale after edits | `python seed_data.py` re-seeds; the DB is disposable |
 | Live CT.gov shows `offline-fallback` | No network or registry hiccup — scoring falls back gracefully |
 | Fresh clone behaves oddly | `pip install -r requirements.txt` + `python seed_data.py`, then retest |
@@ -555,8 +596,7 @@ old databases automatically).
 - Outlook is a transparent heuristic until fitted on HINT public data.
 - Full n2c2 validation needs a data-use agreement; only the synthetic
   fixture ships.
-- Single-user local tool: no auth, no multi-user hardening.
-- No browser pixel verification in CI (API-level checks only).
+- Single shared API token only — no per-user accounts or roles.
 
 ## Companion docs
 

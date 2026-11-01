@@ -205,6 +205,46 @@ export async function runRetention() {
   } catch (err) { fail(el, err); }
 }
 
+export async function runPdf() {
+  const el = $("auditResult");
+  try {
+    const input = $("pdfFile");
+    const file = input.files && input.files[0];
+    if (!file) { el.innerHTML = "<p class='muted'>Choose a PDF first.</p>"; return; }
+    el.innerHTML = "<p class='muted'>Extracting " + esc(file.name) + "…</p>";
+    const dataUrl = await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = () => reject(new Error("could not read file"));
+      fr.readAsDataURL(file);
+    });
+    const b64 = String(dataUrl).split(",", 2)[1] || "";
+    const r = await postJSON("/api/audit-pdf", { filename: file.name, pdf_base64: b64 });
+    $("auditPid").value = r.protocol_id;
+    el.innerHTML = "<p class='muted'>Extracted " + esc(r.pdf_source.pages) +
+      " pages from " + esc(r.pdf_source.filename) +
+      (r.pdf_source.truncated ? " (truncated to caps)" : "") + " — auditing…</p>";
+    await runAudit();
+  } catch (err) { fail(el, err); }
+}
+
+export async function runPubmed() {
+  const el = $("pubmedResult");
+  try {
+    el.innerHTML = "<p class='muted'>Searching…</p>";
+    const r = await getJSON("/api/pubmed?term=" +
+      encodeURIComponent($("pubmedTerm").value) + "&retmax=5");
+    el.innerHTML = "<h3>" + esc(r.count) + " hits <span class='chip'>" +
+      esc(r.source) + "</span></h3>" +
+      (r.articles.length ? "<ul class='tight'>" + r.articles.map((a) =>
+        "<li><a href='https://pubmed.ncbi.nlm.nih.gov/" + esc(a.pmid) +
+        "/' target='_blank' rel='noopener'>PMID " + esc(a.pmid) + "</a> — " +
+        esc(a.title) + " <span class='muted'>(" + esc(a.journal) +
+        (a.year ? ", " + esc(a.year) : "") + ")</span></li>").join("") + "</ul>"
+        : "<p class='muted'>No articles (offline or no match).</p>");
+  } catch (err) { fail(el, err); }
+}
+
 export async function runOutcomes() {
   const el = $("outcomesResult");
   try {

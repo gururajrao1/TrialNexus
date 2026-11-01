@@ -5,6 +5,8 @@ import {
   runAudit,
   runCohort,
   runOutcomes,
+  runPdf,
+  runPubmed,
   runRetention,
   runSafety,
   runSites,
@@ -76,6 +78,8 @@ $("validityForm").addEventListener("submit", (e) => { e.preventDefault(); runVal
 $("sweepForm").addEventListener("submit", (e) => { e.preventDefault(); runSweep(); });
 $("retentionForm").addEventListener("submit", (e) => { e.preventDefault(); runRetention(); });
 $("outcomesForm").addEventListener("submit", (e) => { e.preventDefault(); runOutcomes(); });
+$("pdfForm").addEventListener("submit", (e) => { e.preventDefault(); runPdf(); });
+$("pubmedForm").addEventListener("submit", (e) => { e.preventDefault(); runPubmed(); });
 
 /* Boot: snapshot, prefill, then auto-run all thirteen panels. */
 loadSnapshot().then(loadDemo).then(loadDiversityDefaults).then(() => {
@@ -83,7 +87,7 @@ loadSnapshot().then(loadDemo).then(loadDiversityDefaults).then(() => {
   runTwins(); runMcode(); runValidity(); runSweep(); runRetention();
   Promise.all([runCohort(), runSafety()]).then(() => { runHistory(); runForensics(); });
 }).catch(() => {
-  for (const id of ["auditResult", "sitesResult", "cohortResult", "safetyResult", "diversityResult", "historyResult", "startupResult", "monitoringResult", "finderResult", "externalResult", "twinsResult", "mcodeResult", "validityResult", "sweepResult", "retentionResult", "forensicResult", "outcomesResult"]) {
+  for (const id of ["auditResult", "sitesResult", "cohortResult", "safetyResult", "diversityResult", "historyResult", "startupResult", "monitoringResult", "finderResult", "externalResult", "twinsResult", "mcodeResult", "validityResult", "sweepResult", "retentionResult", "forensicResult", "outcomesResult", "pubmedResult"]) {
     $(id).innerHTML = '<div class="error">API unreachable. Start it with: uvicorn backend.app:app --port 8000</div>';
   }
 });

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
+import re
 import uuid
 from typing import Any
 
@@ -10,14 +13,17 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.agents.cohort_matcher import evaluate_cohort
+from backend.agents.pdf_ingest import extract_pdf_text
 from backend.agents.protocol_auditor import parse_protocol
 from backend.agents.safety_triage import triage_records
 from backend.agents.site_scout import fetch_ctgov_competitors, score_sites
 from backend.config import AE_STREAM, FHIR_DIR
 from backend.database import (
+    delete_protocol,
     get_protocol,
     init_db,
     insert_patient_evaluation,
+    insert_protocol,
     insert_safety_query,
     save_protocol_audit,
     save_site_feasibility,
@@ -125,6 +131,57 @@ def audit_protocol_endpoint(protocol_id: str) -> dict[str, Any]:
     }
     save_protocol_audit(protocol_id, structured, audit)
     return audit
+
+
+class AuditPdfRequest(BaseModel):
+    filename: str
+    pdf_base64: str
+    protocol_id: str = ""
+
+
+@router.post("/api/audit-pdf")
+def audit_pdf_endpoint(body: AuditPdfRequest) -> dict[str, Any]:
+    init_db()
+    try:
+        raw = base64.b64decode(body.pdf_base64, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="pdf_base64 is not valid base64")
+    if len(raw) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="PDF exceeds 25 MB cap")
+    try:
+        pdf = extract_pdf_text(raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    stem = re.sub(r"[^A-Za-z0-9-]+", "-", body.filename.rsplit(".", 1)[0]).strip("-")
+    protocol_id = body.protocol_id.strip() or f"PDF-{(stem or 'upload').upper()}"
+    audit = parse_protocol(pdf["text"])
+    meta = audit.get("protocol_metadata", {})
+    insert_protocol(
+        protocol_id,
+        meta.get("title") or body.filename,
+        meta.get("phase") or "Unknown",
+        meta.get("primary_indication") or "",
+        pdf["text"],
+    )
+    structured = {
+        "inclusion_criteria": audit["inclusion_criteria"],
+        "exclusion_criteria": audit["exclusion_criteria"],
+    }
+    save_protocol_audit(protocol_id, structured, audit)
+    audit["protocol_id"] = protocol_id
+    audit["pdf_source"] = {
+        "filename": body.filename,
+        "pages": pdf["pages"],
+        "chars": pdf["chars"],
+        "truncated": pdf["truncated"],
+    }
+    return audit
+
+
+@router.delete("/api/protocols/{protocol_id}")
+def delete_protocol_endpoint(protocol_id: str) -> dict[str, Any]:
+    init_db()
+    return {"protocol_id": protocol_id, "deleted": delete_protocol(protocol_id)}
 
 
 @router.post("/api/score-sites")

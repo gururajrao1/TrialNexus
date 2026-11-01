@@ -42,6 +42,25 @@ jobs:
       - name: Frontend smoke (skips on branches without JS modules)
         run: |
           if [ -f frontend/js/boot.js ]; then node tests/test_ui_smoke.mjs; else echo "no JS modules on this branch"; fi
+      - name: Browser pixel check (main UI only)
+        run: |
+          if [ ! -f frontend/js/boot.js ]; then echo "no full UI on this branch"; exit 0; fi
+          pip install playwright
+          python -m playwright install chromium
+          sudo python -m playwright install-deps chromium
+          python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000 &
+          SERVER_PID=$!
+          python -m unittest tests.test_ui_pixel -v
+          STATUS=$?
+          kill $SERVER_PID
+          exit $STATUS
+      - name: Upload pixel proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixel-proof
+          path: ${{ runner.temp }}/pixel_proof.png
+          if-no-files-found: ignore
       - name: Core parity between main and mvp
         run: |
           git rev-parse --verify origin/mvp >/dev/null 2>&1 || { echo "no mvp branch yet"; exit 0; }
