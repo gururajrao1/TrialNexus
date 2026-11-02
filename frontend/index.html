@@ -91,6 +91,8 @@
       <section id="tab-sites" aria-labelledby="tabbtn-sites" hidden>
         <form id="sitesForm" class="controls">
           <label>Site file <input id="sitesFile" type="file" accept=".json,application/json"></label>
+          <button type="button" id="loadSites">Load my sites</button>
+          <span id="sitesNote" class="muted"></span>
           <details class="adv grow">
             <summary>Or edit site list <span class="muted">(3 demo sites preloaded)</span></summary>
             <label class="grow">Candidate sites (JSON list)
@@ -138,6 +140,8 @@
       <section id="tab-safety" aria-labelledby="tabbtn-safety" hidden>
         <form id="safetyForm" class="controls">
           <label>Safety file <input id="aeFile" type="file" accept=".json,application/json"></label>
+          <button type="button" id="loadAe">Load my records</button>
+          <span id="aeNote" class="muted"></span>
           <details class="adv grow">
             <summary>Or edit safety records <span class="muted">(10 demo records preloaded)</span></summary>
             <label class="grow">Adverse event / discrepancy records (JSON list)
@@ -150,6 +154,9 @@
         <div id="safetyResult" class="results"><p class="muted">Running…</p></div>
         <h3>CRF coverage trace</h3>
         <form id="crfForm" class="controls">
+          <label>CRF file <input id="crfFile" type="file" accept=".txt,text/plain"></label>
+          <button type="button" id="loadCrf">Load my fields</button>
+          <span id="crfNote" class="muted"></span>
           <details class="adv grow">
             <summary>Paste eCRF fields <span class="muted">(one per line)</span></summary>
             <label class="grow">eCRF field names (one per line)
@@ -164,6 +171,8 @@
         <p class="job"><strong>The job:</strong> route every open query to an owner with a due date, before lock slips. Paste a query export (same columns as the safety JSON: id, created_at, resolution_status, is_sae) or upload the file — it never touches the database.</p>
         <form id="agingForm" class="controls">
           <label>Query file <input id="agingFile" type="file" accept=".json,application/json"></label>
+          <button type="button" id="loadAging">Load my queries</button>
+          <span id="agingNote" class="muted"></span>
           <details class="adv grow">
             <summary>Or paste records <span class="muted">(JSON list)</span></summary>
             <label class="grow">Query records (JSON list)
@@ -230,6 +239,8 @@
         <p class="job"><strong>The job:</strong> catch what listing review catches late. Bring exported visit records (site, subject, planned/actual day, assessments, consent + visit dates) — paste JSON or upload a file. You get findings with severity plus an SDV tier per site: 100% of critical fields where it matters, sampled review where it doesn't.</p>
         <form id="devForm" class="controls">
           <label>Visit file <input id="devFile" type="file" accept=".json,application/json"></label>
+          <button type="button" id="loadDev">Load my visits</button>
+          <span id="devNote" class="muted"></span>
           <details class="adv grow">
             <summary>Or paste records <span class="muted">(JSON list)</span></summary>
             <label class="grow">Visit records (JSON list)
@@ -253,13 +264,21 @@
           <label>Relax criteria (comma-separated IDs) <input id="relaxIds" value="INC-04, EXC-01" size="24"></label>
           <button type="submit">Build control pool</button>
         </form>
-        <p class="muted">Pool is built from all demo FHIR bundles against PROT-TNX-001 with the listed criteria set aside.</p>
+        <div id="extBundleList" class="checklist"></div>
+        <p class="muted">Pool is built from the ticked bundles (demo + your inbox uploads) against PROT-TNX-001 with the listed criteria set aside.</p>
         <div id="externalResult" class="results"><p class="muted">Running…</p></div>
       </section>
       <section id="tab-twins" aria-labelledby="tabbtn-twins" hidden>
         <form id="twinsForm" class="controls">
           <label>Patient bundle <select id="twinsBundle"></select></label>
-          <label>Twins <input id="twinsN" type="number" value="100" min="10" max="500"></label>
+          <label>Twins <input id="twinsN" type="number" value="100" min="10" max="2000"></label>
+          <label>Seed <input id="twinsSeed" type="number" value="7" min="0"></label>
+          <label>Jitter <select id="twinsJitter">
+            <option value="0.05">±5% (lab-grade)</option>
+            <option value="0.10">±10%</option>
+            <option value="0.15" selected>±15% (stress)</option>
+            <option value="0.25">±25% (extreme)</option>
+          </select></label>
           <button type="submit">Generate twins</button>
         </form>
         <p class="muted">In-memory synthetic cohort from the seed patient against PROT-TNX-001 — nothing is stored.</p>

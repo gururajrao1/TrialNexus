@@ -18,7 +18,10 @@ from agents.n2c2_harness import load_fixture, micro_f1  # noqa: E402
 from agents.protocol_auditor import parse_protocol  # noqa: E402
 from agents.risk_models import outlook  # noqa: E402
 from agents.synonyms import normalize  # noqa: E402
-from agents.twin_generator import twin_distribution  # noqa: E402
+from agents.twin_generator import (  # noqa: E402
+    make_twins,
+    twin_distribution,
+)
 
 FHIR = ROOT / "data" / "fhir" / "synthea"
 PROTO = ROOT / "data" / "raw" / "protocols" / "protocol_oncology_phase3.txt"
@@ -150,6 +153,77 @@ class Tier12Tests(unittest.TestCase):
         self.assertEqual(sum(t["counts"].values()), 100)
         self.assertGreaterEqual(t["eligible_pct"], 0)
         self.assertLessEqual(t["eligible_pct"], 100)
+
+    def test_twins_cap_2000(self):
+        self.assertEqual(
+            len(make_twins(load_bundle("patient_001_breast_cancer"), 5000)),
+            2000,
+        )
+
+    def test_twins_wilson_ci(self):
+        t = twin_distribution(
+            self.crit, load_bundle("patient_001_breast_cancer"), n=100, seed=7
+        )
+        lo, hi = t["eligible_ci95"]
+        self.assertLessEqual(lo, t["eligible_pct"])
+        self.assertLessEqual(t["eligible_pct"], hi)
+        self.assertGreaterEqual(lo, 0)
+        self.assertLessEqual(hi, 100)
+
+    def test_twins_flip_drivers(self):
+        t = twin_distribution(
+            self.crit, load_bundle("patient_001_breast_cancer"), n=100, seed=7
+        )
+        self.assertIsInstance(t["flips"], list)
+        self.assertTrue(t["flips"])
+        for f in t["flips"]:
+            for k in ("criterion_id", "kind", "flips", "flip_rate"):
+                self.assertIn(k, f)
+            self.assertLessEqual(f["flips"], t["n"])
+            self.assertGreaterEqual(f["flip_rate"], 0)
+            self.assertLessEqual(f["flip_rate"], 1)
+
+    def test_twins_jitter_zero_matches_base(self):
+        b = load_bundle("patient_001_breast_cancer")
+        base = evaluate(self.crit, b)["overall_status"]
+        t = twin_distribution(self.crit, b, n=50, seed=7, jitter=0.0)
+        self.assertEqual(t["counts"].get(base), 50)
+        self.assertTrue(all(f["flips"] == 0 for f in t["flips"]))
+
+    def test_twins_deterministic(self):
+        kw = {
+            "criteria": self.crit,
+            "bundle": load_bundle("patient_001_breast_cancer"),
+            "n": 100,
+            "seed": 7,
+        }
+        t1 = twin_distribution(**kw)
+        t2 = twin_distribution(**kw)
+        self.assertEqual(t1["counts"], t2["counts"])
+        self.assertEqual(t1["flips"], t2["flips"])
+
+    def test_mcode_histology_non_small_cell(self):
+        p = mcode_profile(load_bundle("patient_001_breast_cancer"))["profile"]
+        self.assertEqual(p["histology"], "non-small cell")
+
+    def test_mcode_egfr_lab_not_biomarker(self):
+        p = mcode_profile(load_bundle("patient_005_diabetes"))["profile"]
+        self.assertNotIn("EGFR", p["biomarkers"])
+
+    def test_mcode_protocol_text_not_cancer(self):
+        b = {
+            "entry": [
+                {
+                    "resource": {
+                        "resourceType": "Observation",
+                        "code": {
+                            "text": "Polyp size greatest dimension by CAP cancer protocols"
+                        },
+                    }
+                }
+            ]
+        }
+        self.assertEqual(mcode_profile(b)["profile"]["cancer_type"], "not documented")
 
     def test_mcode_lung(self):
         p = mcode_profile(load_bundle("patient_001_breast_cancer"))["profile"]

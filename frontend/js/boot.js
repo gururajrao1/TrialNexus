@@ -168,6 +168,25 @@ $("agingFile").addEventListener("change", async (e) => {
   const f = e.target.files && e.target.files[0];
   if (f) $("agingJson").value = await f.text();
 });
+$("crfFile").addEventListener("change", async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (f) $("crfFields").value = await f.text();
+});
+async function loadInbox(slot, targetId, noteId) {
+  const note = $(noteId);
+  try {
+    const r = await getJSON("/api/inbox/" + slot);
+    $(targetId).value = r.text;
+    if (note) note.textContent = "Loaded from your inbox.";
+  } catch (err) {
+    if (note) note.textContent = "Inbox empty — see data/inbox/README.md.";
+  }
+}
+$("loadSites").addEventListener("click", () => loadInbox("sites", "sitesJson", "sitesNote"));
+$("loadAe").addEventListener("click", () => loadInbox("ae", "aeJson", "aeNote"));
+$("loadAging").addEventListener("click", () => loadInbox("queries", "agingJson", "agingNote"));
+$("loadDev").addEventListener("click", () => loadInbox("visits", "devJson", "devNote"));
+$("loadCrf").addEventListener("click", () => loadInbox("ecrf", "crfFields", "crfNote"));
 
 /* Run-all workup: same deterministic chain as boot, with progress status. */
 async function runAllWorkup() {

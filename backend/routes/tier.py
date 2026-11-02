@@ -45,6 +45,7 @@ class TwinsRequest(BaseModel):
     bundle_id: str | None = None
     n: int = 100
     seed: int = 7
+    jitter: float = 0.15
 
 
 class McodeRequest(BaseModel):
@@ -162,7 +163,11 @@ def twins_endpoint(body: TwinsRequest) -> dict[str, Any]:
     if bundle is None:
         raise HTTPException(status_code=400, detail="Provide bundle or bundle_id")
     return twin_distribution(
-        audited_criteria(body.protocol_id), bundle, body.n, body.seed
+        audited_criteria(body.protocol_id),
+        bundle,
+        body.n,
+        body.seed,
+        body.jitter,
     )
 
 

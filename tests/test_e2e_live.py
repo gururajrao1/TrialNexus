@@ -577,6 +577,13 @@ def main():
         and lv["source"] in ("live", "cache", "offline-fallback"),
         (len(lv["studies"]), lv["source"]),
     )
+    inv = json.loads(get("/api/inbox")[1])
+    check(
+        "inbox inventory lists slots without touching user data",
+        set(("sites", "ae", "visits", "queries", "ecrf")) <= set(inv["slots"])
+        and isinstance(inv["bundles"], list),
+        sorted(inv["slots"]),
+    )
     rm = delete("/api/protocols/" + pa["protocol_id"])
     snap2 = json.loads(get("/api/snapshot")[1])
     check(

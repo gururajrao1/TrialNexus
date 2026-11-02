@@ -7,3 +7,10 @@ __pycache__/
 *.db-shm
 data/outputs/
 .streamlit/
+# Inbox contents are user data (possibly sensitive): never commit them.
+# The README and dir placeholder stay tracked; everything else is local-only.
+data/inbox/*.json
+data/inbox/*.txt
+data/inbox/bundles/*
+!data/inbox/README.md
+!data/inbox/bundles/.gitkeep

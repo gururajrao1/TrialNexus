@@ -1,0 +1,46 @@
+[
+  {
+    "site_id": "DEMO-GO",
+    "subject": "s-01",
+    "visit": "Cycle 2 Day 1",
+    "planned_day": 21,
+    "actual_day": 31,
+    "assessments_required": ["ECG", "labs"],
+    "assessments_done": ["ECG", "labs"],
+    "consent_date": "2026-10-01",
+    "visit_date": "2026-10-22"
+  },
+  {
+    "site_id": "DEMO-GO",
+    "subject": "s-02",
+    "visit": "Cycle 2 Day 1",
+    "planned_day": 21,
+    "actual_day": 22,
+    "assessments_required": ["ECG", "labs", "PK draw"],
+    "assessments_done": ["ECG"],
+    "consent_date": "2026-10-01",
+    "visit_date": "2026-10-23"
+  },
+  {
+    "site_id": "DEMO-MID",
+    "subject": "s-03",
+    "visit": "Screening",
+    "planned_day": 0,
+    "actual_day": 0,
+    "assessments_required": ["consent", "labs"],
+    "assessments_done": ["consent", "labs"],
+    "consent_date": "2026-11-02",
+    "visit_date": "2026-11-01"
+  },
+  {
+    "site_id": "DEMO-MID",
+    "subject": "s-04",
+    "visit": "Cycle 1 Day 1",
+    "planned_day": 1,
+    "actual_day": 1,
+    "assessments_required": ["ECG"],
+    "assessments_done": ["ECG"],
+    "consent_date": "2026-10-15",
+    "visit_date": "2026-10-16"
+  }
+]

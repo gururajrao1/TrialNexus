@@ -12,12 +12,23 @@ export async function runTwins() {
     }
     const bundle = demoBundles[parseInt(sel.value || "0", 10)].bundle;
     const r = await postJSON("/api/twins",
-      { protocol_id: "PROT-TNX-001", bundle, n: parseInt($("twinsN").value, 10) || 500 });
+      { protocol_id: "PROT-TNX-001", bundle, n: parseInt($("twinsN").value, 10) || 100,
+        seed: parseInt($("twinsSeed").value, 10) || 0, jitter: parseFloat($("twinsJitter").value) || 0.15 });
     const mix = r.counts;
-    el.innerHTML = "<h3>" + esc(r.n) + " twins (seed " + esc(r.seed) + ")</h3>" +
-      "<p>Eligible <strong>" + esc(r.eligible_pct) + "%</strong> — eligible " +
-      esc(mix.ELIGIBLE) + ", ineligible " + esc(mix.INELIGIBLE) + ", review " +
-      esc(mix.REVIEW_REQUIRED) + "</p>" +
+    const ci = r.eligible_ci95 || [];
+    const flips = (r.flips || []).slice(0, 5);
+    el.innerHTML = "<h3>" + esc(r.n) + " twins (seed " + esc(r.seed) + ", jitter ±" +
+      esc(Math.round((r.jitter || 0.15) * 100)) + "%)</h3>" +
+      "<p>Eligible <strong>" + esc(r.eligible_pct) + "%</strong>" +
+      (ci.length === 2 ? " <span class='muted'>95% CI " + esc(ci[0]) + "–" + esc(ci[1]) +
+        "%, MC-SE ±" + esc(r.mc_se) + "pp</span>" : "") +
+      " — eligible " + esc(mix.ELIGIBLE) + ", ineligible " + esc(mix.INELIGIBLE) +
+      ", review " + esc(mix.REVIEW_REQUIRED) + "</p>" +
+      "<p>Index patient: <strong>" + esc(r.base_status || "?") + "</strong></p>" +
+      (flips.length ? "<h4>Top flip drivers</h4>" + table(flips.map((f) => ({
+        k: f.criterion_id + " (" + f.kind + ")",
+        v: esc(f.flips) + " twins (" + esc((f.flip_rate * 100).toFixed(1)) + "%)",
+      })), [["k", "Criterion"], ["v", "Verdict flips vs index"]]) : "") +
       "<p class='muted'>" + esc(r.note) + "</p>";
   } catch (err) { fail(el, err); }
 }

@@ -21,12 +21,11 @@ from backend.agents.cohort_matcher import (
     match_context,
     patient_id,
 )
-from backend.agents.twin_generator import make_twins
+from backend.agents.twin_generator import MAX_TWINS, make_twins
 
 LEVELS_DOWN = (0.9, 0.75, 0.6)
 LEVELS_UP = (1.15, 1.35, 1.6)
 MAX_IDS = 10
-MAX_TWINS = 500
 
 
 def ladder_for(operator: str, value: Any) -> list[Any]:

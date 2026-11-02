@@ -44,6 +44,18 @@ def _texts(bundle: dict[str, Any]) -> list[str]:
     return out
 
 
+def _marker_present(blob: str, low: str, marker: str) -> bool:
+    """Word-boundary marker match.
+
+    EGFR is case-sensitive on purpose: the kidney lab eGFR (lowercase e,
+    estimated glomerular filtration rate) is not the EGFR gene (HGNC
+    symbols are uppercase). Other markers match case-insensitively.
+    """
+    if marker == "EGFR":
+        return re.search(r"\bEGFR\b", blob) is not None
+    return re.search(r"\b" + re.escape(marker.lower()) + r"\b", low) is not None
+
+
 def _ecog(bundle: dict[str, Any]) -> str:
     for e in bundle.get("entry", []) if isinstance(bundle, dict) else []:
         r = e.get("resource", {}) if isinstance(e, dict) else {}
@@ -67,7 +79,8 @@ def mcode_profile(bundle: dict[str, Any]) -> dict[str, Any]:
         (
             t
             for t in texts
-            if re.search(
+            if "protocol" not in t.lower()
+            and re.search(
                 r"cancer|carcinoma|melanoma|lymphoma|leukemia|nsclc|sclc",
                 t,
                 re.IGNORECASE,
@@ -82,22 +95,25 @@ def mcode_profile(bundle: dict[str, Any]) -> dict[str, Any]:
         stage = "IV (inferred: metastatic)"
     else:
         stage = "not documented"
-    hist = next(
-        (
-            h
-            for h in (
-                "adenocarcinoma",
-                "squamous",
-                "ductal",
-                "lobular",
-                "small cell",
-                "large cell",
-            )
-            if h in low
-        ),
-        "not documented",
-    )
-    biomarkers = sorted({b for b in _BIOMARKERS if b.lower() in low})
+    if "non-small cell" in low or "non small cell" in low:
+        hist = "non-small cell"
+    else:
+        hist = next(
+            (
+                h
+                for h in (
+                    "adenocarcinoma",
+                    "squamous",
+                    "ductal",
+                    "lobular",
+                    "small cell",
+                    "large cell",
+                )
+                if re.search(r"\b" + re.escape(h) + r"\b", low)
+            ),
+            "not documented",
+        )
+    biomarkers = sorted({b for b in _BIOMARKERS if _marker_present(blob, low, b)})
     ecog = _ecog(bundle)
     mets = sorted({s for s in _METS if s in low and "metasta" in low})
     fields = {

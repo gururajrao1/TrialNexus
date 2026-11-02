@@ -9,10 +9,12 @@ sample-only review of low-risk fields. Deterministic, stdlib only.
 
 from __future__ import annotations
 
+import math
 from datetime import datetime
 from typing import Any
 
 CRITICAL_TYPES = {"consent-violation"}
+BINOMIAL_FLAG_P = 0.05
 
 
 def _parse_day(value: Any) -> int | None:
@@ -27,6 +29,71 @@ def _parse_date(value: Any):
         return datetime.strptime(str(value)[:10], "%Y-%m-%d").date()
     except (ValueError, TypeError):
         return None
+
+
+def _binom_upper_tail(n: int, k: int, p: float) -> float:
+    """Exact P(X >= k) for Binomial(n, p). Guards degenerate p."""
+    if n <= 0 or k <= 0:
+        return 1.0
+    if p <= 0:
+        return 0.0
+    if p >= 1:
+        return 1.0
+    return sum(
+        math.comb(n, i) * (p**i) * ((1.0 - p) ** (n - i)) for i in range(k, n + 1)
+    )
+
+
+def _site_signals(
+    records: list[dict[str, Any]], findings: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Per-site deviation-rate outlier screen (central-monitoring style).
+
+    A site's affected-visit rate is tested against the pooled portfolio
+    background rate with an exact binomial upper tail: a site with far
+    more deviations than the portfolio explains gets flagged, while a
+    uniformly clean (or uniformly messy) portfolio flags nothing.
+    """
+    visits: set[tuple[str, str, str]] = set()
+    for rec in records:
+        visits.add(
+            (
+                str(rec.get("site_id", "?")),
+                str(rec.get("subject", rec.get("patient_id", "?"))),
+                str(rec.get("visit", "?")),
+            )
+        )
+    affected: set[tuple[str, str, str]] = set()
+    for f in findings:
+        affected.add((str(f["site_id"]), str(f["subject"]), str(f["visit"])))
+    n_by_site: dict[str, int] = {}
+    for s, _, _ in visits:
+        n_by_site[s] = n_by_site.get(s, 0) + 1
+    k_by_site: dict[str, int] = {}
+    for s, _, _ in affected:
+        k_by_site[s] = k_by_site.get(s, 0) + 1
+    total_n = sum(n_by_site.values()) or 1
+    total_k = sum(k_by_site.get(s, 0) for s in n_by_site)
+    background = total_k / total_n
+    out = []
+    for s in sorted(n_by_site):
+        n = n_by_site[s]
+        k = k_by_site.get(s, 0)
+        rate = k / n if n else 0.0
+        p = _binom_upper_tail(n, k, background) if k > 0 else 1.0
+        out.append(
+            {
+                "site_id": s,
+                "n_visits": n,
+                "n_affected": k,
+                "rate": round(rate, 3),
+                "background_rate": round(background, 3),
+                "p_value": round(p, 4),
+                "direction": "high" if rate > background else "-",
+                "flag": bool(k > 0 and rate > background and p < BINOMIAL_FLAG_P),
+            }
+        )
+    return out
 
 
 def watch_deviations(
@@ -103,6 +170,7 @@ def watch_deviations(
     return {
         "findings": findings,
         "by_site": tiers,
+        "site_signals": _site_signals(records, findings),
         "summary": {
             "n_records": len(records),
             "n_findings": len(findings),
@@ -111,6 +179,8 @@ def watch_deviations(
         "basis": (
             f"Out-of-window beyond ±{window}d, required-but-missing "
             "assessments, and consent-after-visit. Critical/major sites "
-            "get 100% SDV of critical fields; the rest get sampled review."
+            "get 100% SDV of critical fields; the rest get sampled review. "
+            "Site signals test each site's affected-visit rate against the "
+            "pooled background rate (exact binomial tail, p<0.05)."
         ),
     }

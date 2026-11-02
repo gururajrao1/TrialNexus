@@ -149,6 +149,15 @@ class QueryAgingTests(unittest.TestCase):
         self.assertEqual(r["owner_matrix"]["site coordinator"]["61-90"], 1)
         self.assertEqual([e["id"] for e in r["escalation_list"]], ["old-1", "sae-1"])
         self.assertEqual(r["n_overdue"], 2)
+        breach = {b["owner"]: b for b in r["owner_breach"]}
+        self.assertEqual(breach["drug safety"]["breach_rate"], 1.0)
+        self.assertEqual(breach["site coordinator"]["breach_rate"], 0.5)
+        for b in r["owner_breach"]:
+            lo, hi = b["ci95"]
+            self.assertLessEqual(lo, b["breach_rate"])
+            self.assertLessEqual(b["breach_rate"], hi)
+            self.assertGreaterEqual(lo, 0)
+            self.assertLessEqual(hi, 1)
 
     def test_empty_queries(self):
         r = query_aging([], date(2026, 11, 1))

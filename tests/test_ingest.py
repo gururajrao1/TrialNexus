@@ -9,6 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from backend.agents.inbox import list_inbox, read_inbox_text, scan_bundles
 from backend.agents.pdf_ingest import extract_pdf_text
 from backend.agents.pubmed import (
     fetch_pubmed,
@@ -318,6 +319,37 @@ class RealWorldWave2Tests(unittest.TestCase):
         ls = fetch_live_studies("Non-Small Cell Lung Cancer")
         self.assertIn(ls["source"], ("live", "cache", "offline-fallback"))
         self.assertIsInstance(ls["studies"], list)
+
+
+class InboxTests(unittest.TestCase):
+    def test_empty_inbox(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            inv = list_inbox(Path(tmp))
+            self.assertTrue(all(not v["present"] for v in inv["slots"].values()))
+            self.assertEqual(inv["bundles"], [])
+            ok, err = read_inbox_text("sites", Path(tmp))
+            self.assertFalse(ok)
+
+    def test_counts_and_invalid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "sites.json").write_text('[{"id": "S1"}, {"id": "S2"}]')
+            (root / "ae_records.json").write_text("not json")
+            (root / "ecrf_fields.txt").write_text("a\nb\nc\n")
+            (root / "bundles").mkdir()
+            (root / "bundles" / "mine.json").write_text('{"resourceType": "Bundle"}')
+            (root / "bundles" / "bad.json").write_text("{oops")
+            inv = list_inbox(root)
+            self.assertEqual(inv["slots"]["sites"]["rows"], 2)
+            self.assertIn("error", inv["slots"]["ae"])
+            self.assertEqual(inv["slots"]["ecrf"]["lines"], 3)
+            ok, text = read_inbox_text("sites", root)
+            self.assertTrue(ok)
+            self.assertIn("S1", text)
+            ok, _ = read_inbox_text("ae", root)
+            self.assertFalse(ok)
+            bundles = scan_bundles(root)
+            self.assertEqual([b["name"] for b in bundles], ["inbox/mine.json"])
 
 
 class AuthTests(unittest.TestCase):

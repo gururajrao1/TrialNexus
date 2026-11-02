@@ -128,6 +128,39 @@ class DeviationTests(unittest.TestCase):
         self.assertEqual(r["by_site"][0]["tier"], "100% critical fields")
         self.assertEqual(r["summary"]["n_findings"], 3)
 
+    def test_deviation_site_rate_signal(self):
+        recs = []
+        for i in range(10):
+            recs.append(
+                {
+                    "site_id": "S1",
+                    "subject": f"s1-{i}",
+                    "visit": "V1",
+                    "planned_day": 1,
+                    "actual_day": 22 if i < 8 else 2,
+                    "assessments_required": [],
+                    "assessments_done": [],
+                }
+            )
+        for i in range(10):
+            recs.append(
+                {
+                    "site_id": "S2",
+                    "subject": f"s2-{i}",
+                    "visit": "V1",
+                    "planned_day": 1,
+                    "actual_day": 2,
+                    "assessments_required": [],
+                    "assessments_done": [],
+                }
+            )
+        r = watch_deviations(recs, window_days=3)
+        sig = {s["site_id"]: s for s in r["site_signals"]}
+        self.assertEqual(sig["S1"]["direction"], "high")
+        self.assertLess(sig["S1"]["p_value"], 0.05)
+        self.assertTrue(sig["S1"]["flag"])
+        self.assertFalse(sig["S2"]["flag"])
+
     def test_clean_site_samples(self):
         r = watch_deviations(
             [

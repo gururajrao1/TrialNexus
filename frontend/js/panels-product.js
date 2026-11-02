@@ -1,7 +1,7 @@
 /* Product panel runners: diversity, history, startup, monitoring, finder, external. */
 import { $, esc, fail, getJSON, postJSON } from "./api.js";
 import { COHORT_BADGE, table } from "./ui.js";
-import { demoBundles, diversityBundles } from "./data.js";
+import { demoBundles, diversityBundles, selectedExtBundles } from "./data.js";
 
 export async function loadDiversityDefaults() {
   const d = await getJSON("/api/diversity-defaults");
@@ -81,14 +81,19 @@ export async function runMonitoring() {
     const r = await getJSON("/api/monitoring");
     el.innerHTML = r.sites.map((s) => {
       const badge = s.worst === "alert" ? "b-inelig" : (s.worst === "watch" ? "b-review" : "b-elig");
-      const z = s.zero_enroll || { score: 0, band: "low", factors: [] };
+      const z = s.zero_enroll || { score: 0, band: "low", factors: [], trend: null };
+      const tr = z.trend
+        ? "Trend: <strong>" + esc(z.trend.direction) + "</strong> (Cox-Stuart p=" +
+          esc(z.trend.p_value) + ", " + esc(z.trend.n_pairs) + " pairs)"
+        : "";
       const zb = z.band === "high" ? "b-inelig" : (z.band === "elevated" ? "b-review" : "b-elig");
       return '<div class="record"><h3>' + esc(s.site_id) + ' <span class="badge ' + badge + '">' +
         esc(s.worst) + "</span> " +
         '<span class="badge ' + zb + '">zero-enroll ' + esc(z.band) + " " + esc(z.score) + "</span></h3>" +
         table(s.kris.map((k) => ({ kri: k.kri, value: k.value, detail: k.detail, status: k.status })),
           [["kri", "KRI"], ["value", "Value"], ["detail", "Detail"], ["status", "Status"]]) +
-        "<p class='muted'>Zero-enroll risk: " + esc(z.factors.join("; ")) + "</p>" +
+        "<p class='muted'>Zero-enroll risk: " + esc((z.factors || []).join("; ")) +
+          (tr ? " — " + tr : "") + "</p>" +
         "<p>" + esc(s.action) + "</p></div>";
     }).join("") +
       "<p class='muted'>Alert sites: " + esc(r.alert_site_ids.join(", ") || "none") + ". " + esc(r.note) + "</p>";
@@ -131,7 +136,8 @@ export async function runExternal() {
   try {
     const relax = $("relaxIds").value.split(",").map((s) => s.trim()).filter(Boolean);
     const r = await postJSON("/api/external-control",
-      { protocol_id: "PROT-TNX-001", relax_ids: relax });
+      { protocol_id: "PROT-TNX-001", relax_ids: relax,
+        bundles: selectedExtBundles() });
     el.innerHTML = "<h3>Comparator pool n=" + esc(r.pool.length) +
       " (near-miss n=" + esc(r.near_miss.length) + ")</h3>" +
       (r.pool.length ? table(r.pool,
@@ -183,6 +189,13 @@ export async function runDeviation() {
       (r.by_site.length ? table(r.by_site.map((s) => ({
         site: s.site_id, tier: s.tier, n: s.n_findings,
       })), [["site", "Site"], ["tier", "SDV tier"], ["n", "Findings"]]) : "") +
+      ((r.site_signals || []).length ? "<h3>Rate signals vs portfolio</h3>" +
+        table((r.site_signals || []).map((s) => ({
+          site: s.site_id + (s.flag ? ' <span class="badge b-review">rate signal</span>' : ""),
+          rate: esc((s.rate * 100).toFixed(1)) + "% (" + esc(s.n_affected) + "/" + esc(s.n_visits) + ")",
+          bg: esc((s.background_rate * 100).toFixed(1)) + "%",
+          p: esc(s.p_value),
+        })), [["site", "Site"], ["rate", "Affected"], ["bg", "Portfolio"], ["p", "p-value"]]) : "") +
       (r.findings.length ? table(r.findings.map((f) => ({
         site: f.site_id, subj: f.subject, visit: f.visit, type: f.type,
         sev: f.severity, late: f.days_late, detail: f.detail,

@@ -10,6 +10,7 @@ wall clock.
 
 from __future__ import annotations
 
+import math
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -115,6 +116,48 @@ def _due_date(created: str, sla_days: int) -> str | None:
     return (day + timedelta(days=sla_days)).isoformat()
 
 
+def _wilson_ci(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score interval for a binomial proportion."""
+    if n <= 0:
+        return (0.0, 0.0)
+    p = k / n
+    denom = 1 + z * z / n
+    center = (p + z * z / (2 * n)) / denom
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
+    return (max(0.0, center - half), min(1.0, center + half))
+
+
+def _owner_breach(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """SLA-breach proportion per owner with a Wilson 95% interval.
+
+    No resolution timestamps are stored, so time-to-close survival
+    analysis is out of reach by design; the breach proportion with an
+    uncertainty interval is the honest statistic available.
+    """
+    n_by: dict[str, int] = {}
+    bad_by: dict[str, int] = {}
+    for r in rows:
+        o = str(r.get("owner", "?"))
+        n_by[o] = n_by.get(o, 0) + 1
+        if r.get("days_overdue", 0) > 0:
+            bad_by[o] = bad_by.get(o, 0) + 1
+    out = []
+    for o in sorted(n_by):
+        n = n_by[o]
+        bad = bad_by.get(o, 0)
+        lo, hi = _wilson_ci(bad, n)
+        out.append(
+            {
+                "owner": o,
+                "n": n,
+                "n_overdue": bad,
+                "breach_rate": round(bad / n, 3) if n else 0.0,
+                "ci95": [round(lo, 3), round(hi, 3)],
+            }
+        )
+    return out
+
+
 def query_aging(
     queries: list[dict[str, Any]], today: date | None = None
 ) -> dict[str, Any]:
@@ -151,6 +194,7 @@ def query_aging(
     return {
         "rows": rows,
         "owner_matrix": matrix,
+        "owner_breach": _owner_breach(rows),
         "escalation_list": escalated,
         "n_open": len(rows),
         "n_overdue": len(escalated),

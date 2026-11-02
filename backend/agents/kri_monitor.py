@@ -8,7 +8,10 @@ An SDV-style visit is recommended only for alert-level sites.
 
 from __future__ import annotations
 
+import math
 from typing import Any
+
+TREND_P = 0.05
 
 THRESHOLDS = {
     "screen_failure_pct": {"watch": 30.0, "alert": 40.0},
@@ -27,6 +30,39 @@ def _level(value: float, kri: str) -> str:
     if value >= t["watch"]:
         return "watch"
     return "ok"
+
+
+def _binom_two_sided(n: int, k: int) -> float:
+    """Two-sided sign-test p-value under p=0.5 (exact, via symmetry)."""
+    if n <= 0:
+        return 1.0
+    lo = min(k, n - k)
+    tail = sum(math.comb(n, i) for i in range(lo + 1)) / 2**n
+    return min(1.0, 2.0 * tail)
+
+
+def cox_stuart_trend(values: list[float]) -> dict[str, Any]:
+    """Cox-Stuart nonparametric trend test (no distributional assumptions).
+
+    Pairs each month with the month half a series later and sign-tests
+    the differences: a real declining (or improving) run-rate shows up
+    even when month-to-month noise hides it.
+    """
+    n = len(values)
+    diffs = [values[i + n // 2] - values[i] for i in range(n - n // 2)]
+    signs = [1 if d > 0 else -1 for d in diffs if d != 0]
+    m = len(signs)
+    if m == 0:
+        return {"direction": "stable", "p_value": 1.0, "n_pairs": 0}
+    npos = sum(1 for s in signs if s > 0)
+    p = _binom_two_sided(m, npos)
+    if p >= TREND_P:
+        direction = "stable"
+    elif npos > m / 2:
+        direction = "improving"
+    else:
+        direction = "declining"
+    return {"direction": direction, "p_value": round(p, 4), "n_pairs": m}
 
 
 def zero_enroll_risk(rows: list[dict[str, Any]], monthly_target: int) -> dict[str, Any]:
@@ -53,7 +89,12 @@ def zero_enroll_risk(rows: list[dict[str, Any]], monthly_target: int) -> dict[st
         f"latest gap {gap_pct:.0f}% vs target {monthly_target}",
         "run-rate declining" if declining else "run-rate stable",
     ]
-    return {"score": score, "band": band, "factors": factors}
+    return {
+        "score": score,
+        "band": band,
+        "factors": factors,
+        "trend": cox_stuart_trend([float(e) for e in enrolled]),
+    }
 
 
 def site_kris(rows: list[dict[str, Any]], monthly_target: int) -> dict[str, Any]:

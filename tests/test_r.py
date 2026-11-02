@@ -105,6 +105,16 @@ class ZeroEnrollTests(unittest.TestCase):
         self.assertEqual(zero_enroll_risk(good, 3)["band"], "low")
         self.assertEqual(zero_enroll_risk([], 3)["band"], "elevated")
 
+    def test_trend_cox_stuart(self):
+        declining = [{"enrolled": e} for e in (12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1)]
+        t = zero_enroll_risk(declining, 5)["trend"]
+        self.assertEqual(t["direction"], "declining")
+        self.assertLess(t["p_value"], 0.05)
+        flat = [{"enrolled": 3}] * 8
+        t = zero_enroll_risk(flat, 3)["trend"]
+        self.assertEqual(t["direction"], "stable")
+        self.assertEqual(t["p_value"], 1.0)
+
 
 class AttritionTests(unittest.TestCase):
     def test_shape_and_monotone(self):

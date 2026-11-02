@@ -10,10 +10,17 @@ export async function loadDemo() {
   demoBundles = d.bundles;
   $("bundleList").innerHTML = d.bundles.map((b) =>
     '<label><input type="checkbox" checked data-name="' + esc(b.name) + '"> ' + esc(b.name) + "</label>").join("");
+  $("extBundleList").innerHTML = d.bundles.map((b) =>
+    '<label><input type="checkbox" checked data-name="' + esc(b.name) + '"> ' + esc(b.name) + "</label>").join("");
 }
 
 export function selectedBundles() {
   const checked = new Set([...$("bundleList").querySelectorAll("input:checked")].map((i) => i.dataset.name));
+  return demoBundles.filter((b) => checked.has(b.name)).map((b) => b.bundle);
+}
+
+export function selectedExtBundles() {
+  const checked = new Set([...$("extBundleList").querySelectorAll("input:checked")].map((i) => i.dataset.name));
   return demoBundles.filter((b) => checked.has(b.name)).map((b) => b.bundle);
 }
 

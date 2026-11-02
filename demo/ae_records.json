@@ -1,0 +1,27 @@
+[
+  {
+    "discrepancy_id": "DEMO-SAE-1",
+    "patient_id": "PT-DEMO-01",
+    "reported_term": "Grade 4 pneumonitis",
+    "description": "Grade 4 pneumonitis with hypoxia on Day 3 post-dose, hospitalized, oxygen required",
+    "severity": "SEVERE",
+    "unexpected": true,
+    "suspect_drug": "osimertinib"
+  },
+  {
+    "discrepancy_id": "DEMO-R1",
+    "patient_id": "PT-DEMO-02",
+    "reported_term": "Mild nausea post-dose",
+    "description": "Grade 1 nausea on Day 1, resolved without treatment",
+    "severity": "MILD",
+    "suspect_drug": "placebo"
+  },
+  {
+    "discrepancy_id": "DEMO-R2",
+    "patient_id": "PT-DEMO-03",
+    "reported_term": "Fatigue",
+    "description": "Grade 2 fatigue over two weeks, ongoing",
+    "severity": "MODERATE",
+    "suspect_drug": "placebo"
+  }
+]

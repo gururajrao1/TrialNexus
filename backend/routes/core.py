@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.agents.cohort_matcher import evaluate_cohort
+from backend.agents.inbox import list_inbox, read_inbox_text, scan_bundles
 from backend.agents.pdf_ingest import extract_pdf_text
 from backend.agents.prescreen_queue import rank_prescreen
 from backend.agents.protocol_auditor import parse_protocol
@@ -92,8 +93,22 @@ def demo_data() -> dict[str, Any]:
     if FHIR_DIR.exists():
         for p in sorted(FHIR_DIR.glob("*.json")):
             bundles.append({"name": p.name, "bundle": json.loads(p.read_text())})
+    bundles += scan_bundles()
     ae_records = json.loads(AE_STREAM.read_text()) if AE_STREAM.exists() else []
     return {"sites": DEMO_SITES, "bundles": bundles, "ae_records": ae_records}
+
+
+@router.get("/api/inbox")
+def inbox_inventory() -> dict[str, Any]:
+    return list_inbox()
+
+
+@router.get("/api/inbox/{slot}")
+def inbox_slot(slot: str) -> dict[str, Any]:
+    ok, text = read_inbox_text(slot)
+    if not ok:
+        raise HTTPException(status_code=404, detail=text)
+    return {"slot": slot, "text": text}
 
 
 class ScoreSitesRequest(BaseModel):

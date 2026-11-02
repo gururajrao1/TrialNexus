@@ -1,7 +1,7 @@
 /* Core panel runners: audit, sites, cohort, safety. */
 import { $, esc, fail, getJSON, postJSON } from "./api.js";
 import { COHORT_BADGE, SITE_BADGE, critTable, evalTable, preJSON, table } from "./ui.js";
-import { demoBundles, prescreenEntries, selectedBundles } from "./data.js";
+import { demoBundles, prescreenEntries, selectedBundles, selectedExtBundles } from "./data.js";
 
 let lastStructure = null;
 
@@ -228,6 +228,12 @@ function agingHTML(ag) {
         : "<span class='stamp stamp-watch'>" + esc(e.escalation) + "</span>") +
       "</li>").join("") +
       "</ul>" : "<p class='muted'>Nothing overdue — all queries on-track.</p>") +
+    ((ag.owner_breach || []).length ? "<h3>Breach rate by owner</h3>" +
+      table((ag.owner_breach || []).map((b) => ({
+        o: b.owner,
+        r: esc((b.breach_rate * 100).toFixed(1)) + "% (" + esc(b.n_overdue) + "/" + esc(b.n) + ")",
+        ci: esc((b.ci95 || [])[0]) + "–" + esc((b.ci95 || [])[1]),
+      })), [["o", "Owner"], ["r", "Breach"], ["ci", "95% CI (proportion)"]]) : "") +
     "<p class='muted'>" + esc(ag.basis) + "</p>";
 }
 
