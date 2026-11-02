@@ -120,7 +120,9 @@ export async function runSites() {
       esc(fc.p50) + "</strong>, P90 <strong>" + esc(fc.p90) + "</strong> (mean " +
       esc(fc.mean) + "; " + esc(fc.simulations) + " simulations, seed " + esc(fc.seed) + ")</p>" +
       (fc.site_sources ? "<p class='muted'>Rate sources: " +
-        esc(Object.values(fc.site_sources).join(", ")) + " (observed = measured site history)</p>" : "");
+        esc(Object.values(fc.site_sources).join(", ")) + " (observed = measured site history)</p>" : "") +
+      "<div class='goto-row'><button data-goto='startup'>Open study startup</button>" +
+      "<button data-goto='monitoring'>Open monitoring KRIs</button></div>";
   } catch (err) { fail(el, err); }
 }
 
@@ -141,6 +143,9 @@ export async function runCohort() {
         ? "<p>Action items:</p><ul class='tight'>" + p.physician_action_items.map((a) => "<li>" + esc(a) + "</li>").join("") + "</ul>"
         : "<p>No action items.</p>") +
       "</div>").join("") || "<p>No bundles selected.</p>";
+    el.innerHTML += "<div class='goto-row'><button data-goto='diversity'>Plan diversity from this cohort</button>" +
+      "<button data-goto='finder'>Find trials for these patients</button>" +
+      "<button data-goto='history'>Review history</button></div>";
   } catch (err) { fail(el, err); }
 }
 
@@ -177,7 +182,9 @@ export async function runSafety() {
       "<ul class='tight'>" + lk.checks.map((c) =>
         "<li>" + esc(c.item) + ": " + '<span class="badge ' + rag(c.status) + '">' +
         esc(c.status) + "</span> <span class='muted'>" + esc(c.detail) + "</span></li>").join("") + "</ul>" +
-      "<p class='muted'>" + esc(lk.basis) + "</p>";
+      "<p class='muted'>" + esc(lk.basis) + "</p>" +
+      "<div class='goto-row'><button data-goto='history'>Review safety history</button>" +
+      "<button data-goto='cohort'>Recheck cohort</button></div>";
   } catch (err) { fail(el, err); }
 }
 

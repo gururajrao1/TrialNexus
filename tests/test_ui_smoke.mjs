@@ -13,7 +13,7 @@ const IDS = new Set([
   "startupSite", "startupStage", "startupNote", "startupResult",
   "monitoringResult", "finderBundle", "finderResult", "relaxIds", "externalResult",
   "twinsBundle", "twinsN", "twinsResult", "mcodeBundle", "mcodeResult", "validityResult",
-  "dlStructure", "copyStructure", "globalPid",
+  "dlStructure", "copyStructure", "globalPid", "runAllBtn", "runAllStatus",
   "sweepSeed", "sweepN", "sweepResult", "sweepForm",
   "retentionBundle", "retentionResult", "retentionForm",
   "outcomesCondition", "outcomesPhase", "outcomesResult", "outcomesForm",

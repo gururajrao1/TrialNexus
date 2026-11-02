@@ -133,6 +133,47 @@ $("pdfForm").addEventListener("submit", (e) => { e.preventDefault(); runPdf(); }
 $("pubmedForm").addEventListener("submit", (e) => { e.preventDefault(); runPubmed(); });
 $("signalForm").addEventListener("submit", (e) => { e.preventDefault(); runSignals(); });
 
+/* Run-all workup: same deterministic chain as boot, with progress status. */
+async function runAllWorkup() {
+  const btn = $("runAllBtn");
+  const status = $("runAllStatus");
+  if (btn) btn.disabled = true;
+  const say = (msg) => { if (status) status.textContent = msg; };
+  try {
+    say("Scoring sites…");
+    await runSites();
+    say("Matching cohort…");
+    await runCohort();
+    say("Triaging safety…");
+    await runSafety();
+    say("Auditing protocol…");
+    await runAudit();
+    say("Planning diversity…");
+    await runDiversity();
+    say("Refreshing operations…");
+    await runStartup();
+    await runMonitoring();
+    say("Matching external evidence…");
+    await runFinder();
+    await runExternal();
+    await runTwins();
+    await runMcode();
+    await runValidity();
+    await runSweep();
+    await runRetention();
+    say("Summarizing history…");
+    await runHistory();
+    await runForensics();
+    say("Workup complete.");
+  } catch (err) {
+    say("Workup stopped: one panel threw. See that panel for details.");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+const runAllBtn = $("runAllBtn");
+if (runAllBtn) runAllBtn.addEventListener("click", () => { runAllWorkup(); });
+
 /* Boot: snapshot, prefill, then auto-run all thirteen panels. */
 showTab(initialTab(), false);
 const g0 = $("globalPid");

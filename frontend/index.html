@@ -59,8 +59,14 @@
     <main class="content">
       <section aria-label="Trial snapshot">
         <div class="snap-head">
-          <h2>Trial snapshot</h2>
-          <p class="muted snap-sub">Seeded demo: NSCLC protocol, 2 sites, 2 FHIR patients, 4 safety records.</p>
+          <div>
+            <h2>Trial snapshot</h2>
+            <p class="muted snap-sub">Seeded demo: NSCLC protocol, 2 sites, 2 FHIR patients, 4 safety records.</p>
+          </div>
+          <div class="snap-actions">
+            <button id="runAllBtn" type="button" class="btn-go">Run full workup</button>
+            <span id="runAllStatus" class="muted" role="status" aria-live="polite"></span>
+          </div>
         </div>
         <div id="snapshot" class="metrics"><p class="muted">Loading…</p></div>
       </section>
