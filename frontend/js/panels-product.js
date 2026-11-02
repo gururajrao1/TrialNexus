@@ -164,3 +164,32 @@ export async function runForensics() {
       "<p class='muted'>" + esc(r.note) + "</p>";
   } catch (err) { fail(el, err); }
 }
+
+
+export async function runDeviation() {
+  const el = $("devResult");
+  try {
+    const txt = $("devJson").value.trim();
+    if (!txt) {
+      el.innerHTML = "<p class='muted'>Upload a visit file or paste records first.</p>";
+      return;
+    }
+    const w = parseInt($("devWindow").value, 10) || 0;
+    const r = await postJSON("/api/deviation-watch",
+      { records: JSON.parse(txt), window_days: w });
+    el.innerHTML = "<h3>" + esc(r.summary.n_findings) + " findings over " +
+      esc(r.summary.n_records) + " visits " +
+      '<span class="chip">' + esc(r.summary.n_sites_flagged) + " sites flagged</span></h3>" +
+      (r.by_site.length ? table(r.by_site.map((s) => ({
+        site: s.site_id, tier: s.tier, n: s.n_findings,
+      })), [["site", "Site"], ["tier", "SDV tier"], ["n", "Findings"]]) : "") +
+      (r.findings.length ? table(r.findings.map((f) => ({
+        site: f.site_id, subj: f.subject, visit: f.visit, type: f.type,
+        sev: f.severity, late: f.days_late, detail: f.detail,
+      })), [["site", "Site"], ["subj", "Subject"], ["visit", "Visit"],
+        ["type", "Type"], ["sev", "Severity"], ["late", "Days late"],
+        ["detail", "Detail"]])
+        : "<p class='muted'>No deviations in this upload.</p>") +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}

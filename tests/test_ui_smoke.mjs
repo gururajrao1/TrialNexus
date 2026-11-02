@@ -20,6 +20,12 @@ const IDS = new Set([
   "forensicResult",
   "pdfFile", "pdfForm", "pubmedTerm", "pubmedResult", "pubmedForm",
   "signalForm", "signalsResult",
+  "crfFields", "crfForm", "crfResult",
+  "sitesFile", "aeFile",
+  "prescreenFiles", "prescreenForm", "prescreenResult", "prescreenUploadNote",
+  "prescreenGene", "dlWorklist",
+  "devJson", "devFile", "devWindow", "devForm", "devResult",
+  "agingJson", "agingFile", "agingForm", "agingResult",
 ]);
 for (const t of TABS) { IDS.add("tabbtn-" + t); IDS.add("tab-" + t); IDS.add(t + "Form"); }
 
@@ -148,11 +154,24 @@ globalThis.fetch = async (url) => {
       checks: [], overall: "green", basis: "b" },
     "/api/lock-readiness/UNASSIGNED": { buckets: {}, n_open: 0, n_resolved: 0,
       checks: [], overall: "green", basis: "b" },
+    "/api/query-aging/UNASSIGNED": { rows: [], owner_matrix: {},
+      escalation_list: [], n_open: 0, n_overdue: 0, basis: "b" },
+    "/api/query-aging/PROT-TNX-001": { rows: [], owner_matrix: {},
+      escalation_list: [], n_open: 0, n_overdue: 0, basis: "b" },
     "/api/adaptive-design": { spending: "obf", alpha: 0.05,
       looks: [{ t: 0.5, alpha_spent: 0, z_efficacy: 0, p_efficacy: 0 }], basis: "b" },
     "/api/consent-check/PROT-TNX-001": { score: 90, n_sentences: 1,
       long_sentences: [], jargon_hits: [], suggestions: [], basis: "b" },
   };
+  if (path.startsWith("/api/live-studies")) {
+    return { ok: true,
+      json: async () => ({ condition: "x", phase: "", studies: [], source: "cache" }) };
+  }
+  if (path.startsWith("/api/outcome-benchmark")) {
+    return { ok: true,
+      json: async () => ({ n_completed: 10, source: "cache", with_results_pct: 50,
+        sampled_n: 10, median_enrollment: 200, top_outcomes: [] }) };
+  }
   if (!(path in routes)) throw new Error("unstubbed endpoint: " + path);
   return { ok: true, json: async () => routes[path] };
 };

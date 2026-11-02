@@ -24,6 +24,12 @@ CTGV_CACHE = OUTPUTS_DIR / "ctgov_cache.json"
 CTGV_CACHE_MAX_ENTRIES = 200
 PUBMED_CACHE = OUTPUTS_DIR / "pubmed_cache.json"
 PUBMED_CACHE_MAX_ENTRIES = 200
+CLINVAR_CACHE = OUTPUTS_DIR / "clinvar_cache.json"
+CLINVAR_CACHE_MAX_ENTRIES = 200
+OPENFDA_CACHE = OUTPUTS_DIR / "openfda_cache.json"
+OPENFDA_CACHE_MAX_ENTRIES = 200
+REALWORLD_CACHE = OUTPUTS_DIR / "realworld_cache.json"
+REALWORLD_CACHE_MAX_ENTRIES = 300
 #: Run-history retention: keeps the SQLite store bounded on long-lived
 #: demo DBs while leaving ample rows for forensics and monitoring.
 HISTORY_CAP = 2000

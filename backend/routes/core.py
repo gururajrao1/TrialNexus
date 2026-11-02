@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from backend.agents.cohort_matcher import evaluate_cohort
 from backend.agents.pdf_ingest import extract_pdf_text
+from backend.agents.prescreen_queue import rank_prescreen
 from backend.agents.protocol_auditor import parse_protocol
 from backend.agents.safety_triage import triage_records
 from backend.agents.site_scout import fetch_ctgov_competitors, score_sites
@@ -236,6 +237,35 @@ def match_cohort_endpoint(body: MatchCohortRequest) -> dict[str, Any]:
             }
         )
     return result
+
+
+class PrescreenEntry(BaseModel):
+    name: str = ""
+    bundle: dict[str, Any]
+
+
+class PrescreenRequest(BaseModel):
+    protocol_id: str
+    entries: list[PrescreenEntry]
+    drivers: list[dict[str, Any]] = []
+
+
+@router.post("/api/prescreen-queue")
+def prescreen_queue_endpoint(body: PrescreenRequest) -> dict[str, Any]:
+    init_db()
+    if not body.entries:
+        raise HTTPException(status_code=400, detail="entries is required")
+    crit = audited_criteria(body.protocol_id)
+    results = evaluate_cohort(crit, [e.bundle for e in body.entries])[
+        "matching_results"
+    ]
+    for r, e in zip(results, body.entries):
+        label = e.name.strip() or r["patient_id"]
+        r["patient_id"] = (
+            f"{label} ({r['patient_id']})" if label != r["patient_id"] else label
+        )
+    ranked = rank_prescreen(results, body.drivers)
+    return {"protocol_id": body.protocol_id, **ranked}
 
 
 @router.post("/api/triage-safety")

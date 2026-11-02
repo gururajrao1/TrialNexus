@@ -1,7 +1,7 @@
 /* Core panel runners: audit, sites, cohort, safety. */
 import { $, esc, fail, getJSON, postJSON } from "./api.js";
 import { COHORT_BADGE, SITE_BADGE, critTable, evalTable, preJSON, table } from "./ui.js";
-import { demoBundles, selectedBundles } from "./data.js";
+import { demoBundles, prescreenEntries, selectedBundles } from "./data.js";
 
 let lastStructure = null;
 
@@ -123,6 +123,17 @@ export async function runSites() {
         esc(Object.values(fc.site_sources).join(", ")) + " (observed = measured site history)</p>" : "") +
       "<div class='goto-row'><button data-goto='startup'>Open study startup</button>" +
       "<button data-goto='monitoring'>Open monitoring KRIs</button></div>";
+    try {
+      const live = await getJSON("/api/live-studies?condition=" +
+        encodeURIComponent($("siteCondition").value || "Non-Small Cell Lung Cancer"));
+      el.innerHTML += "<h3>Live recruiting studies " +
+        '<span class="chip">' + esc(live.source) + "</span></h3>" +
+        (live.studies.length ? "<ul class='tight'>" + live.studies.map((s) =>
+          "<li><strong>" + esc(s.nct) + "</strong> — " + esc(s.title) +
+          " <span class='muted'>(" + esc(s.city || "?") + ", " +
+          esc(s.country || "?") + " · " + esc(s.n_locations) + " sites)</span></li>").join("") +
+          "</ul>" : "<p class='muted'>No recruiting studies returned.</p>");
+    } catch (e) { /* registry optional; the scored portfolio stands alone */ }
   } catch (err) { fail(el, err); }
 }
 
@@ -161,7 +172,7 @@ export async function runSafety() {
       (t.regulatory_alert_required
         ? '<span class="badge b-sae">alert ' + esc(t.reporting_deadline_hours) + "h</span>"
         : '<span class="badge b-routine">routine</span>') + "</h3>" +
-      (t.is_sae ? '<div class="alert-sae">Serious adverse event — expedited clock: ' +
+      (t.is_sae ? '<div class="alert-sae"><span class="stamp stamp-sae">SAE</span> Serious adverse event — expedited clock: ' +
         (t.regulatory_alert_required ? esc(t.reporting_deadline_hours) + "h to report" : "standard reporting") + "</div>" : "") +
       "<p>" + esc(t.reported_term) + " — " + esc(t.meddra_classification.soc) + " / " +
       esc(t.meddra_classification.preferred_term) + " — " + esc(t.severity_grade) + "</p>" +
@@ -182,11 +193,177 @@ export async function runSafety() {
       "<ul class='tight'>" + lk.checks.map((c) =>
         "<li>" + esc(c.item) + ": " + '<span class="badge ' + rag(c.status) + '">' +
         esc(c.status) + "</span> <span class='muted'>" + esc(c.detail) + "</span></li>").join("") + "</ul>" +
-      "<p class='muted'>" + esc(lk.basis) + "</p>" +
+      "<p class='muted'>" + esc(lk.basis) + "</p>";
+    const ag = await getJSON("/api/query-aging/" + encodeURIComponent(pid));
+    el.innerHTML += agingHTML(ag) +
       "<div class='goto-row'><button data-goto='history'>Review safety history</button>" +
       "<button data-goto='cohort'>Recheck cohort</button></div>";
   } catch (err) { fail(el, err); }
 }
+
+function agingHTML(ag) {
+  const owners = Object.keys(ag.owner_matrix);
+  const buckets = ["0-7", "8-30", "31-60", "61-90", "90+"];
+  const peak = Math.max(1, ...owners.flatMap((o) =>
+    buckets.map((b) => ag.owner_matrix[o][b] || 0)));
+  const heatCell = (n) => n
+    ? '<div class="heat-cell" style="background: rgba(14, 95, 86, ' +
+      (0.08 + 0.52 * n / peak).toFixed(2) + ')">' + esc(n) + "</div>"
+    : '<div class="heat-cell zero">0</div>';
+  return "<h3>Query aging by owner " +
+    '<span class="chip">' + esc(ag.n_overdue) + " overdue</span></h3>" +
+    (owners.length ? '<div class="heat" role="table" aria-label="open queries by owner and age">' +
+      '<div class="heat-row"><div></div>' +
+      buckets.map((b) => '<div class="heat-h">' + esc(b) + "d</div>").join("") +
+      "</div>" + owners.map((o) => '<div class="heat-row"><div class="heat-owner">' +
+        esc(o) + "</div>" + buckets.map((b) =>
+          heatCell(ag.owner_matrix[o][b] || 0)).join("") + "</div>").join("") +
+      "</div>"
+      : "<p class='muted'>No open queries.</p>") +
+    (ag.escalation_list.length ? "<ul class='tight'>" + ag.escalation_list.map((e) =>
+      "<li><span class='mono'>" + esc(e.id) + "</span> → " + esc(e.owner) +
+      " — due " + esc(e.due_date || "unknown") + " (" + esc(e.days_overdue) +
+      "d overdue) " + (e.escalation === "overdue"
+        ? "<span class='chip'>" + esc(e.escalation) + "</span>"
+        : "<span class='stamp stamp-watch'>" + esc(e.escalation) + "</span>") +
+      "</li>").join("") +
+      "</ul>" : "<p class='muted'>Nothing overdue — all queries on-track.</p>") +
+    "<p class='muted'>" + esc(ag.basis) + "</p>";
+}
+
+
+export async function runAgingUpload() {
+  const el = $("agingResult");
+  try {
+    const txt = $("agingJson").value.trim();
+    if (!txt) {
+      el.innerHTML = "<p class='muted'>Upload a query file or paste records first.</p>";
+      return;
+    }
+    el.innerHTML = agingHTML(await postJSON("/api/query-aging",
+      { records: JSON.parse(txt) }));
+  } catch (err) { fail(el, err); }
+}
+
+
+export async function runCrfTrace() {
+  const el = $("crfResult");
+  try {
+    const fields = $("crfFields").value.split("\n").map((s) => s.trim()).filter(Boolean);
+    const r = await postJSON("/api/crf-trace", {
+      protocol_id: $("safetyPid").value.trim() || "UNASSIGNED",
+      fields,
+    });
+    const badge = r.summary.missing ? "b-review" : "b-elig";
+    el.innerHTML = "<h3>Coverage " + esc(r.summary.covered) + "/" +
+      esc(r.summary.n_criteria) + ' <span class="badge ' + badge + '">' +
+      (r.summary.missing ? esc(r.summary.missing) + " missing" : "full") +
+      "</span></h3>" +
+      table(r.rows.map((x) => ({ id: x.id, kind: x.kind, status: x.status,
+        fields: x.matched_fields.length ? x.matched_fields.join(", ") : "—" })),
+        [["id", "Criterion"], ["kind", "Kind"], ["status", "Status"],
+         ["fields", "eCRF fields"]]) +
+      (r.stale.length ? "<h3>Amendment drift</h3><ul class='tight'>" +
+        r.stale.map((s) => "<li><span class='mono'>" + esc(s.id) +
+          "</span> — " + esc(s.change) + "</li>").join("") + "</ul>" : "") +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+
+let lastWorklist = [];
+
+export async function runPrescreen() {
+  const el = $("prescreenResult");
+  try {
+    const entries = prescreenEntries();
+    if (!entries.length) {
+      el.innerHTML = "<p class='muted'>Tick bundles above or upload FHIR files first.</p>";
+      return;
+    }
+    const pid = $("cohortPid").value.trim();
+    const fq = pid ? "?protocol_id=" + encodeURIComponent(pid) : "";
+    let drivers = [];
+    try {
+      const f = await getJSON("/api/forensics" + fq);
+      drivers = (f.top_drivers || []).map((d) => ({ criterion_id: d.criterion_id, rate: d.rate }));
+    } catch (e) { /* weights stay flat when no history exists */ }
+    const r = await postJSON("/api/prescreen-queue",
+      { protocol_id: pid, entries, drivers });
+    lastWorklist = r.rows;
+    const genes = [...new Set(r.rows.flatMap((x) => x.genes || []))].slice(0, 6);
+    el.innerHTML = "<h3>Worklist: " + esc(r.rows.length) + " to chase " +
+      '<span class="chip">' + esc(r.summary.n_review) + " review · " +
+      esc(r.summary.n_eligible) + " eligible · " +
+      esc(r.summary.n_near_miss) + " near-miss</span></h3>" +
+      (genes.length ? "<p>Biomarkers: " + genes.map((g) =>
+        "<button type='button' class='gene-btn' data-gene='" + esc(g) +
+        "'>" + esc(g) + "</button>").join("") + "</p>" : "") +
+      (r.rows.length ? table(r.rows.map((x) => ({
+        patient: x.patient_id,
+        status: x.status + (x.near_miss ? " (near-miss)" : ""),
+        match: x.match_percentage, missing: x.n_missing,
+        priority: x.priority_score,
+        actions: (x.action_items || []).slice(0, 2).join("; ") || "—",
+      })), [["patient", "Patient"], ["status", "Status"], ["match", "Match %"],
+        ["missing", "Missing"], ["priority", "Priority"],
+        ["actions", "Next actions"]]) +
+        "<details class='evidence'><summary>Missing items per patient</summary><ul class='tight'>" +
+        r.rows.map((x) => "<li><span class='mono'>" + esc(x.patient_id) +
+          "</span>: " + (x.missing_items.length
+            ? x.missing_items.map((m) => esc(m.criterion_id)).join(", ")
+            : "none") +
+          (x.hard_fails.length ? " — hard fail: " +
+            x.hard_fails.map((c) => esc(c)).join(", ") : "") + "</li>").join("") +
+        "</ul></details>" +
+        "<p><button type='button' id='dlWorklist'>Download CSV</button></p>"
+        : "<p class='muted'>Queue clear — nothing to chase.</p>") +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+    el.querySelectorAll(".gene-btn").forEach((b) =>
+      b.addEventListener("click", () => loadGene(b.getAttribute("data-gene"))));
+    const dl = $("dlWorklist");
+    if (dl) dl.addEventListener("click", () => {
+      const csv = "patient_id,status,match_percentage,n_missing,priority_score,missing_items\n" +
+        lastWorklist.map((x) => [x.patient_id, x.status, x.match_percentage,
+          x.n_missing, x.priority_score,
+          x.missing_items.map((m) => m.criterion_id).join("|")].map((v) =>
+            '"' + String(v === null || v === undefined ? "" : v).replace(/"/g, '""') + '"').join(",")).join("\n");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+      a.download = "prescreen_worklist.csv";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  } catch (err) { fail(el, err); }
+}
+
+
+async function loadGene(gene) {
+  const g = $("prescreenGene");
+  try {
+    const c = await getJSON("/api/gene-card?gene=" + encodeURIComponent(gene));
+    const src = c.sources || {};
+    const vh = c.variant_highlights || { variants: [] };
+    g.innerHTML = "<h3>" + esc(c.gene) + (c.name ? " — " + esc(c.name) : "") + "</h3>" +
+      (c.gene_summary ? "<p>" + esc(c.gene_summary) + " <span class='chip'>MyGene · " +
+        esc(src.mygene || "?") + "</span></p>" : "") +
+      (c.civic_description ? "<p>" + esc(c.civic_description) +
+        " <span class='chip'>CIViC · " + esc(src.civic || "?") + "</span></p>" : "") +
+      (c.clinvar && c.clinvar.variants.length ? "<h3>ClinVar variants (n=" +
+        esc(c.clinvar.count) + ') <span class="chip">' +
+        esc(src.clinvar || "?") + "</span></h3><ul class='tight'>" +
+        c.clinvar.variants.slice(0, 5).map((v) =>
+          "<li><strong>" + esc(v.variation || v.id) + "</strong> — " +
+          esc(v.significance || "unclassified") + " <span class='muted'>(" +
+          esc(v.condition || "no condition") + ")</span></li>").join("") + "</ul>" : "") +
+      (vh.variants && vh.variants.length ? "<h3>Top annotated variants</h3><ul class='tight'>" +
+        vh.variants.slice(0, 5).map((v) =>
+          "<li><span class='mono'>" + esc(v.id) + "</span> — " +
+          esc(v.significance) + (v.condition ? " <span class='muted'>(" +
+            esc(v.condition) + ")</span>" : "") + "</li>").join("") + "</ul>" : "");
+  } catch (err) { fail(g, err); }
+}
+
 
 export async function runSweep() {
   const el = $("sweepResult");
@@ -299,7 +476,26 @@ export async function runSignals() {
       })), [["pair", "Drug × Event"], ["n", "n"], ["prr", "PRR"], ["chi2", "χ²"],
         ["ror", "ROR [95% CI]"], ["status", "Status"]])
         : "<p class='muted'>No drug-event pairs.</p>") +
+      '<div id="faersLine"></div>' +
       "<p class='muted'>" + esc(r.basis) + "</p>";
+    const top = r.pairs.find((p) =>
+      p.drug && p.drug !== "unknown" && (p.status === "signal" || p.status === "watch"));
+    if (top) {
+      try {
+        const d = await getJSON("/api/drug-safety?drug=" + encodeURIComponent(top.drug) +
+          "&event=" + encodeURIComponent(top.event));
+        const fl = document.getElementById("faersLine");
+        if (fl) fl.innerHTML = "<p>Regulatory reality check: <strong>" +
+          esc(top.drug) + " × " + esc(top.event) + "</strong> — " +
+          esc(d.faers.reports) + " FAERS reports <span class='chip'>" +
+          esc(d.faers.source) + "</span>" +
+          (d.label.has_boxed ? ' <span class="stamp stamp-watch">boxed warning</span>' : "") +
+          (d.recalls.count ? " · " + esc(d.recalls.count) + " recall(s) on file" +
+            (d.recalls.latest.classification ? " (latest: " +
+              esc(d.recalls.latest.classification) + ")" : "") : "") +
+          "</p>";
+      } catch (e) { /* drug safety is optional garnish; the table stands alone */ }
+    }
   } catch (err) { fail(el, err); }
 }
 

@@ -1,11 +1,14 @@
 /* Boot: tabs, snapshot, form wiring, auto-run all thirteen panels. */
 import { $, esc, fail, getJSON, postJSON } from "./api.js";
-import { loadDemo } from "./data.js";
+import { loadDemo, uploadedBundles } from "./data.js";
 import {
+  runAgingUpload,
   runAudit,
   runCohort,
+  runCrfTrace,
   runOutcomes,
   runPdf,
+  runPrescreen,
   runPubmed,
   runRetention,
   runSafety,
@@ -15,6 +18,7 @@ import {
 } from "./panels-core.js";
 import {
   loadDiversityDefaults,
+  runDeviation,
   runDiversity,
   runExternal,
   runFinder,
@@ -132,6 +136,38 @@ $("outcomesForm").addEventListener("submit", (e) => { e.preventDefault(); runOut
 $("pdfForm").addEventListener("submit", (e) => { e.preventDefault(); runPdf(); });
 $("pubmedForm").addEventListener("submit", (e) => { e.preventDefault(); runPubmed(); });
 $("signalForm").addEventListener("submit", (e) => { e.preventDefault(); runSignals(); });
+$("crfForm").addEventListener("submit", (e) => { e.preventDefault(); runCrfTrace(); });
+$("prescreenForm").addEventListener("submit", (e) => { e.preventDefault(); runPrescreen(); });
+$("prescreenFiles").addEventListener("change", async (e) => {
+  const files = [...(e.target.files || [])];
+  uploadedBundles.length = 0;
+  for (const f of files) {
+    try {
+      uploadedBundles.push({ name: f.name, bundle: JSON.parse(await f.text()) });
+    } catch (err) { /* skip unreadable files */ }
+  }
+  $("prescreenUploadNote").textContent = uploadedBundles.length
+    ? uploadedBundles.length + " uploaded bundle(s) added to the worklist pool."
+    : "No uploads yet — using ticked demo bundles.";
+});
+$("devForm").addEventListener("submit", (e) => { e.preventDefault(); runDeviation(); });
+$("devFile").addEventListener("change", async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (f) $("devJson").value = await f.text();
+});
+$("sitesFile").addEventListener("change", async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (f) $("sitesJson").value = await f.text();
+});
+$("aeFile").addEventListener("change", async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (f) $("aeJson").value = await f.text();
+});
+$("agingForm").addEventListener("submit", (e) => { e.preventDefault(); runAgingUpload(); });
+$("agingFile").addEventListener("change", async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (f) $("agingJson").value = await f.text();
+});
 
 /* Run-all workup: same deterministic chain as boot, with progress status. */
 async function runAllWorkup() {
@@ -187,7 +223,7 @@ if (g0) {
 }
 loadSnapshot().then(loadDemo).then(loadDiversityDefaults).then(() => {
   runAudit(); runSites(); runDiversity(); runStartup(); runMonitoring(); runFinder(); runExternal();
-  runTwins(); runMcode(); runValidity(); runSweep(); runRetention();
+  runTwins(); runMcode(); runValidity(); runSweep(); runRetention(); runOutcomes();
   Promise.all([runCohort(), runSafety()]).then(() => { runHistory(); runForensics(); });
 }).catch(() => {
   for (const id of ["auditResult", "sitesResult", "cohortResult", "safetyResult", "diversityResult", "historyResult", "startupResult", "monitoringResult", "finderResult", "externalResult", "twinsResult", "mcodeResult", "validityResult", "sweepResult", "retentionResult", "forensicResult", "outcomesResult", "pubmedResult"]) {

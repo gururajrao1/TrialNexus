@@ -90,12 +90,16 @@
       </section>
       <section id="tab-sites" aria-labelledby="tabbtn-sites" hidden>
         <form id="sitesForm" class="controls">
-          <label class="grow">Candidate sites (JSON list)
-            <textarea id="sitesJson" rows="12" spellcheck="false"></textarea>
-          </label>
+          <label>Site file <input id="sitesFile" type="file" accept=".json,application/json"></label>
+          <details class="adv grow">
+            <summary>Or edit site list <span class="muted">(3 demo sites preloaded)</span></summary>
+            <label class="grow">Candidate sites (JSON list)
+              <textarea id="sitesJson" rows="12" spellcheck="false"></textarea>
+            </label>
+          </details>
           <label>Target enrollment <input id="siteTarget" type="number" value="450" min="0"></label>
           <label>Condition (live lookup) <input id="siteCondition" value="Non-Small Cell Lung Cancer" size="28"></label>
-          <label class="check"><input id="siteLive" type="checkbox"> Use live CT.gov counts</label>
+          <label class="check"><input id="siteLive" type="checkbox" checked> Use live CT.gov counts</label>
           <button type="submit">Score sites</button>
         </form>
         <div id="sitesResult" class="results"><p class="muted">Running…</p></div>
@@ -121,16 +125,54 @@
           <button type="submit">Score retention</button>
         </form>
         <div id="retentionResult" class="results"><p class="muted">Running…</p></div>
+        <h3>Prescreen workup queue</h3>
+        <p class="job"><strong>The job:</strong> turn this morning's charts into an ordered chase list. Tick bundles above or upload your own FHIR JSON, run the worklist, chase the missing labs top-down. Uploads stay in memory — nothing is stored.</p>
+        <form id="prescreenForm" class="controls">
+          <label>FHIR bundles <input id="prescreenFiles" type="file" accept=".json,application/json" multiple></label>
+          <span id="prescreenUploadNote" class="muted">No uploads yet — using ticked demo bundles.</span>
+          <button type="submit">Run worklist</button>
+        </form>
+        <div id="prescreenResult" class="results"><p class="muted">Not run yet.</p></div>
+        <div id="prescreenGene" class="results"></div>
       </section>
       <section id="tab-safety" aria-labelledby="tabbtn-safety" hidden>
         <form id="safetyForm" class="controls">
-          <label class="grow">Adverse event / discrepancy records (JSON list)
-            <textarea id="aeJson" rows="12" spellcheck="false"></textarea>
-          </label>
+          <label>Safety file <input id="aeFile" type="file" accept=".json,application/json"></label>
+          <details class="adv grow">
+            <summary>Or edit safety records <span class="muted">(10 demo records preloaded)</span></summary>
+            <label class="grow">Adverse event / discrepancy records (JSON list)
+              <textarea id="aeJson" rows="12" spellcheck="false"></textarea>
+            </label>
+          </details>
           <label>Protocol ID <input id="safetyPid" value="PROT-TNX-001" size="16"></label>
           <button type="submit">Triage</button>
         </form>
         <div id="safetyResult" class="results"><p class="muted">Running…</p></div>
+        <h3>CRF coverage trace</h3>
+        <form id="crfForm" class="controls">
+          <details class="adv grow">
+            <summary>Paste eCRF fields <span class="muted">(one per line)</span></summary>
+            <label class="grow">eCRF field names (one per line)
+              <textarea id="crfFields" rows="6" spellcheck="false" placeholder="anc_result"></textarea>
+            </label>
+          </details>
+          <button type="submit">Trace coverage</button>
+        </form>
+        <p class="muted">Maps audited INC/EXC criteria to your eCRF fields — missing means the data is never captured.</p>
+        <div id="crfResult" class="results"><p class="muted">Not traced yet — paste fields and run.</p></div>
+        <h3>Query aging from your export</h3>
+        <p class="job"><strong>The job:</strong> route every open query to an owner with a due date, before lock slips. Paste a query export (same columns as the safety JSON: id, created_at, resolution_status, is_sae) or upload the file — it never touches the database.</p>
+        <form id="agingForm" class="controls">
+          <label>Query file <input id="agingFile" type="file" accept=".json,application/json"></label>
+          <details class="adv grow">
+            <summary>Or paste records <span class="muted">(JSON list)</span></summary>
+            <label class="grow">Query records (JSON list)
+              <textarea id="agingJson" rows="8" spellcheck="false" placeholder='[{"id": "Q-1", "created_at": "2026-09-01", "resolution_status": "OPEN"}]'></textarea>
+            </label>
+          </details>
+          <button type="submit">Route queries</button>
+        </form>
+        <div id="agingResult" class="results"><p class="muted">Not routed yet.</p></div>
         <h3>Literature (PubMed)</h3>
         <form id="pubmedForm" class="controls">
           <label>Term <input id="pubmedTerm" value="EGFR inhibitor hepatotoxicity" size="32"></label>
@@ -145,9 +187,12 @@
       </section>
       <section id="tab-diversity" aria-labelledby="tabbtn-diversity" hidden>
         <form id="diversityForm" class="controls">
-          <label class="grow">Enrollment goals by group (JSON, %)
-            <textarea id="diversityTargets" rows="10" spellcheck="false"></textarea>
-          </label>
+          <details class="adv grow">
+            <summary>Edit enrollment goals <span class="muted">(defaults preloaded)</span></summary>
+            <label class="grow">Enrollment goals by group (JSON, %)
+              <textarea id="diversityTargets" rows="10" spellcheck="false"></textarea>
+            </label>
+          </details>
           <button type="submit">Plan diversity</button>
         </form>
         <p class="muted">Uses the bundles ticked in Cohort matching (or all demo bundles if none).</p>
@@ -181,6 +226,20 @@
           <button type="submit">Refresh KRIs</button>
         </form>
         <div id="monitoringResult" class="results"><p class="muted">Running…</p></div>
+        <h3>Deviation watch</h3>
+        <p class="job"><strong>The job:</strong> catch what listing review catches late. Bring exported visit records (site, subject, planned/actual day, assessments, consent + visit dates) — paste JSON or upload a file. You get findings with severity plus an SDV tier per site: 100% of critical fields where it matters, sampled review where it doesn't.</p>
+        <form id="devForm" class="controls">
+          <label>Visit file <input id="devFile" type="file" accept=".json,application/json"></label>
+          <details class="adv grow">
+            <summary>Or paste records <span class="muted">(JSON list)</span></summary>
+            <label class="grow">Visit records (JSON list)
+              <textarea id="devJson" rows="8" spellcheck="false" placeholder='[{"site_id": "SITE-001", "subject": "a", "planned_day": 14, "actual_day": 22}]'></textarea>
+            </label>
+          </details>
+          <label>Window (days) <input id="devWindow" type="number" value="3" min="0" max="30"></label>
+          <button type="submit">Screen deviations</button>
+        </form>
+        <div id="devResult" class="results"><p class="muted">Not screened yet.</p></div>
       </section>
       <section id="tab-finder" aria-labelledby="tabbtn-finder" hidden>
         <form id="finderForm" class="controls">

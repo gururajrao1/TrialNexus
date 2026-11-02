@@ -17,6 +17,18 @@ export function selectedBundles() {
   return demoBundles.filter((b) => checked.has(b.name)).map((b) => b.bundle);
 }
 
+/* Coordinator-uploaded FHIR bundles (in-memory only, never stored). */
+export let uploadedBundles = [];
+
+export function selectedEntries() {
+  const checked = new Set([...$("bundleList").querySelectorAll("input:checked")].map((i) => i.dataset.name));
+  return demoBundles.filter((b) => checked.has(b.name)).map((b) => ({ name: b.name, bundle: b.bundle }));
+}
+
+export function prescreenEntries() {
+  return [...selectedEntries(), ...uploadedBundles];
+}
+
 export function diversityBundles() {
   const sel = selectedBundles();
   return sel.length ? sel : demoBundles.map((b) => b.bundle);

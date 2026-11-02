@@ -15,6 +15,23 @@ from backend.agents.pubmed import (
     parse_esearch_xml,
     parse_esummary_xml,
 )
+from backend.agents.real_data import (
+    fetch_clinvar,
+    fetch_drug_label,
+    fetch_faers,
+    fetch_gene_card,
+    fetch_live_studies,
+    fetch_recalls,
+    genes_in_text,
+    parse_civic_gene,
+    parse_clinvar_esummary,
+    parse_enforcement,
+    parse_faers_total,
+    parse_label_doc,
+    parse_live_studies,
+    parse_mygene_hit,
+    parse_myvariant_hits,
+)
 from backend.auth import authorized
 from backend.database import (
     delete_protocol,
@@ -113,6 +130,14 @@ ESUMMARY_FIXTURE = """<?xml version="1.0"?>
 </DocSum></eSummaryResult>"""
 
 
+CLINVAR_FIXTURE = """<?xml version="1.0"?>
+<eSummaryResult><DocSum><Id>12345</Id>
+<Item Name="VariationName" Type="String">EGFR c.2573T&gt;G (p.Leu858Arg)</Item>
+<Item Name="Condition" Type="String">Lung cancer</Item>
+<Item Name="ClinicalSignificance" Type="String">Pathogenic</Item>
+</DocSum></eSummaryResult>"""
+
+
 class PubMedTests(unittest.TestCase):
     def test_parsers_offline(self):
         count, pmids = parse_esearch_xml(ESEARCH_FIXTURE)
@@ -131,6 +156,168 @@ class PubMedTests(unittest.TestCase):
         self.assertIsInstance(r["articles"], list)
         for a in r["articles"]:
             self.assertIn("pmid", a)
+
+
+class RealDataTests(unittest.TestCase):
+    def test_genes_in_text(self):
+        self.assertEqual(
+            genes_in_text("EGFR L858R and HER2 amplification, ANC normal"),
+            ["EGFR", "ERBB2"],
+        )
+        self.assertEqual(genes_in_text("no biomarkers mentioned"), [])
+        self.assertEqual(genes_in_text("History of MI"), [])
+
+    def test_clinvar_parser_offline(self):
+        cards = parse_clinvar_esummary(CLINVAR_FIXTURE)
+        self.assertEqual(len(cards), 1)
+        self.assertEqual(cards[0]["id"], "12345")
+        self.assertIn("EGFR", cards[0]["variation"])
+        self.assertEqual(parse_clinvar_esummary("garbage"), [])
+
+    def test_faers_parser_offline(self):
+        self.assertEqual(parse_faers_total('{"meta": {"results": {"total": 42}}}'), 42)
+        self.assertEqual(parse_faers_total("garbage"), 0)
+        self.assertEqual(parse_faers_total("{}"), 0)
+
+    def test_fetchers_never_crash(self):
+        c = fetch_clinvar("EGFR", 1)
+        self.assertIn(c["source"], ("live", "cache", "offline-fallback"))
+        self.assertIsInstance(c["count"], int)
+        self.assertIsInstance(c["variants"], list)
+        f = fetch_faers("osimertinib", "Pneumonitis")
+        self.assertIn(f["source"], ("live", "cache", "offline-fallback"))
+        self.assertIsInstance(f["reports"], int)
+
+
+class RealWorldWave2Tests(unittest.TestCase):
+    def test_gene_parsers_offline(self):
+        mg = parse_mygene_hit(
+            {
+                "hits": [
+                    {
+                        "symbol": "EGFR",
+                        "name": "epidermal growth factor receptor",
+                        "summary": "Receptor tyrosine kinase.",
+                    }
+                ]
+            }
+        )
+        self.assertEqual(mg["symbol"], "EGFR")
+        self.assertIn("Receptor", mg["summary"])
+        self.assertEqual(
+            parse_mygene_hit({}), {"symbol": "", "name": "", "summary": ""}
+        )
+        cv = parse_civic_gene(
+            {"data": {"gene": {"name": "EGFR", "description": "Key driver."}}}
+        )
+        self.assertEqual(cv["description"], "Key driver.")
+        self.assertEqual(
+            parse_civic_gene({"data": {}}), {"name": "", "description": ""}
+        )
+        mv = parse_myvariant_hits(
+            {
+                "hits": [
+                    {
+                        "_id": "chr7:g.1A>T",
+                        "clinvar": {
+                            "clinical_significance": "Pathogenic",
+                            "trait": "Lung cancer",
+                        },
+                    },
+                    {"_id": "x"},
+                ]
+            }
+        )
+        self.assertEqual(mv[0]["significance"], "Pathogenic")
+        self.assertEqual(mv[1]["significance"], "unclassified")
+        self.assertEqual(parse_myvariant_hits("garbage"), [])
+
+    def test_label_recall_parsers_offline(self):
+        lb = parse_label_doc(
+            {
+                "results": [
+                    {
+                        "openfda": {"brand_name": ["ADVIL"]},
+                        "boxed_warning": [""],
+                        "warnings": ["Do not use."],
+                    }
+                ]
+            }
+        )
+        self.assertEqual(lb["brand"], "ADVIL")
+        self.assertFalse(lb["has_boxed"])
+        self.assertTrue(lb["has_warnings"])
+        self.assertEqual(
+            parse_label_doc({}),
+            {
+                "brand": "",
+                "has_boxed": False,
+                "boxed_warning": "",
+                "has_warnings": False,
+            },
+        )
+        en = parse_enforcement(
+            {
+                "meta": {"results": {"total": 2}},
+                "results": [
+                    {
+                        "recall_number": "D-123",
+                        "reason_for_recall": "Mislabel",
+                        "classification": "Class II",
+                        "status": "Ongoing",
+                        "recalling_firm": "X",
+                    }
+                ],
+            }
+        )
+        self.assertEqual(en["count"], 2)
+        self.assertEqual(en["latest"]["classification"], "Class II")
+        self.assertEqual(parse_enforcement({}), {"count": 0, "latest": {}})
+
+    def test_studies_parser_offline(self):
+        st = parse_live_studies(
+            {
+                "studies": [
+                    {
+                        "protocolSection": {
+                            "identificationModule": {
+                                "nctId": "NCT1",
+                                "briefTitle": "T",
+                            },
+                            "statusModule": {"overallStatus": "RECRUITING"},
+                            "contactsLocationsModule": {
+                                "locations": [
+                                    {"city": "Boston", "country": "United States"},
+                                    {"city": "Lyon", "country": "France"},
+                                ]
+                            },
+                        }
+                    }
+                ]
+            }
+        )
+        self.assertEqual(st[0]["nct"], "NCT1")
+        self.assertEqual(st[0]["city"], "Boston")
+        self.assertEqual(st[0]["n_locations"], 2)
+        self.assertEqual(parse_live_studies({}), [])
+
+    def test_wave2_fetchers_never_crash(self):
+        g = fetch_gene_card("EGFR")
+        self.assertIn(g["sources"]["mygene"], ("live", "cache", "offline-fallback"))
+        self.assertIsInstance(g["clinvar"], dict)
+        lb = fetch_drug_label("ibuprofen")
+        self.assertIn(
+            lb.get("source", "offline-fallback"), ("live", "cache", "offline-fallback")
+        )
+        self.assertIsInstance(lb["has_boxed"], bool)
+        rc = fetch_recalls("ibuprofen")
+        self.assertIn(
+            rc.get("source", "offline-fallback"), ("live", "cache", "offline-fallback")
+        )
+        self.assertIsInstance(rc["count"], int)
+        ls = fetch_live_studies("Non-Small Cell Lung Cancer")
+        self.assertIn(ls["source"], ("live", "cache", "offline-fallback"))
+        self.assertIsInstance(ls["studies"], list)
 
 
 class AuthTests(unittest.TestCase):

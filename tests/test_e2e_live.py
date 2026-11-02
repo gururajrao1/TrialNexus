@@ -474,6 +474,109 @@ def main():
         o["success_probability"] == 0.3 and any("log-odds" in d for d in o["drivers"]),
         o["success_probability"],
     )
+    pq = post(
+        "/api/prescreen-queue",
+        {
+            "protocol_id": "PROT-TNX-001",
+            "entries": [
+                {"name": f"seed-{i}", "bundle": b} for i, b in enumerate(bundles)
+            ],
+        },
+    )
+    pq_status = [x["status"] for x in pq["rows"]]
+    pq_ordered, seen_elig = "REVIEW_REQUIRED" in pq_status, False
+    for x in pq["rows"]:
+        if x["status"] == "ELIGIBLE":
+            seen_elig = True
+        elif seen_elig and (x["status"] == "REVIEW_REQUIRED" or x["near_miss"]):
+            pq_ordered = False
+    check(
+        "prescreen ranks review before eligible",
+        pq_ordered,
+        pq_status,
+    )
+    dw = post(
+        "/api/deviation-watch",
+        {
+            "records": [
+                {
+                    "site_id": "SITE-002",
+                    "subject": "s1",
+                    "visit": "V2",
+                    "planned_day": 14,
+                    "actual_day": 30,
+                    "assessments_required": ["ECG"],
+                    "assessments_done": [],
+                }
+            ],
+            "window_days": 3,
+        },
+    )
+    check(
+        "deviation watch flags SITE-002 with SDV tier",
+        dw["summary"]["n_findings"] >= 2
+        and dw["by_site"][0]["tier"] == "100% critical fields",
+        dw["summary"],
+    )
+    qa = post(
+        "/api/query-aging",
+        {
+            "records": [
+                {
+                    "id": "Q-OLD",
+                    "created_at": "2020-01-01",
+                    "resolution_status": "OPEN",
+                }
+            ]
+        },
+    )
+    check(
+        "query upload routes escalations without touching DB",
+        qa["escalation_list"]
+        and qa["escalation_list"][0]["id"] == "Q-OLD"
+        and qa["escalation_list"][0]["escalation"] == "critical",
+        qa["n_overdue"],
+    )
+    cx = json.loads(get("/api/clinvar?gene=EGFR")[1])
+    check(
+        "clinvar lookup returns gene card",
+        cx["gene"] == "EGFR"
+        and cx["source"] in ("live", "cache", "offline-fallback")
+        and isinstance(cx["variants"], list),
+        cx["source"],
+    )
+    fx = json.loads(get("/api/faers?drug=osimertinib")[1])
+    check(
+        "openfda lookup returns report count",
+        fx["drug"] == "osimertinib"
+        and fx["source"] in ("live", "cache", "offline-fallback")
+        and isinstance(fx["reports"], int),
+        (fx["source"], fx["reports"]),
+    )
+    gc = json.loads(get("/api/gene-card?gene=EGFR")[1])
+    check(
+        "gene card fuses mygene, civic and clinvar",
+        gc["gene"] == "EGFR"
+        and isinstance(gc.get("civic_description", ""), str)
+        and isinstance(gc.get("variant_highlights", {}).get("variants", []), list)
+        and gc["sources"]["mygene"] in ("live", "cache", "offline-fallback"),
+        gc["sources"],
+    )
+    ds = json.loads(get("/api/drug-safety?drug=ibuprofen")[1])
+    check(
+        "drug safety card carries faers, label and recalls",
+        isinstance(ds["faers"]["reports"], int)
+        and isinstance(ds["label"]["has_boxed"], bool)
+        and isinstance(ds["recalls"]["count"], int),
+        (ds["faers"]["reports"], ds["recalls"]["count"]),
+    )
+    lv = json.loads(get("/api/live-studies?condition=Non-Small+Cell+Lung+Cancer")[1])
+    check(
+        "live studies returns recruiting trials with locations",
+        isinstance(lv["studies"], list)
+        and lv["source"] in ("live", "cache", "offline-fallback"),
+        (len(lv["studies"]), lv["source"]),
+    )
     rm = delete("/api/protocols/" + pa["protocol_id"])
     snap2 = json.loads(get("/api/snapshot")[1])
     check(

@@ -222,6 +222,49 @@ ul.tight { margin: 6px 0; padding-left: 20px; }
 .segs i.on-high { background: var(--red); }
 .controls label.check { flex-direction: row; align-items: center; gap: 6px; font-weight: 400; }
 
+/* Safety tab — chart-requisition DNA: stamps, heatmap, dense ledger */
+.stamp {
+  display: inline-block; border: 2px solid currentColor; border-radius: 4px;
+  padding: 1px 9px; font-size: 12px; font-weight: 800; letter-spacing: 0.07em;
+  text-transform: uppercase; white-space: nowrap;
+}
+.stamp-sae { color: var(--red); }
+.stamp-ok { color: var(--green); }
+.stamp-watch { color: var(--amber); }
+#tab-safety .alert-sae { border-width: 2px; }
+#tab-safety .alert-sae .stamp { margin-right: 8px; }
+
+/* Collapsed advanced inputs: raw JSON lives one click away, not on screen */
+details.adv { flex: 1 1 100%; }
+details.adv > summary {
+  cursor: pointer; font-size: 13px; font-weight: 650; color: var(--pine-deep);
+  padding: 2px 0; list-style: revert;
+}
+details.adv > summary .muted { font-weight: 400; }
+details.adv label.grow { margin-top: 8px; }
+
+/* Job-at-hand cards: what to bring, what you get, what to do next. */
+.job {
+  background: #f5f8f7; border: 1px solid var(--line-soft); border-radius: 8px;
+  padding: 10px 14px; font-size: 13.5px; color: var(--ink-soft); margin: 12px 0 4px;
+}
+.job strong { color: var(--pine-deep); }
+.gene-btn {
+  background: #fff; color: var(--pine-deep); border: 1px solid #bcd8d1; border-radius: 999px;
+  padding: 2px 10px; font-size: 12px; font-weight: 700; cursor: pointer; margin: 0 4px 4px 0;
+}
+.gene-btn:hover { background: #eef6f4; }
+#tab-safety table.grid td, #tab-safety table.grid th { padding: 10px 12px; }
+.heat { display: grid; gap: 4px; margin: 10px 0 16px; font-variant-numeric: tabular-nums; }
+.heat-row { display: grid; grid-template-columns: 180px repeat(5, 1fr); gap: 4px; align-items: stretch; }
+.heat-h { font-size: 12px; font-weight: 700; color: var(--ink-soft); padding: 6px 4px; }
+.heat-owner { font-size: 13px; font-weight: 650; padding: 8px 4px; }
+.heat-cell {
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 0;
+  text-align: center; font-weight: 700; font-size: 14px;
+}
+.heat-cell.zero { color: var(--muted); font-weight: 400; background: #fff; }
+
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto; }
 }

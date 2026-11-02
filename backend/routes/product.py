@@ -15,16 +15,27 @@ from pydantic import BaseModel
 from backend.agents.attrition import predict_attrition
 from backend.agents.burden_scorer import score_burden
 from backend.agents.consent_helper import check_consent
+from backend.agents.crf_trace import trace_criteria
 from backend.agents.criteria_feedback import design_feedback
 from backend.agents.csm import csm_screen
 from backend.agents.dct_readiness import dct_readiness
+from backend.agents.deviation_watch import watch_deviations
 from backend.agents.diversity_planner import DEFAULT_TARGETS, plan_diversity
 from backend.agents.external_control import build_external_control
 from backend.agents.failure_forensics import forensic_report
 from backend.agents.kri_monitor import portfolio_kris
-from backend.agents.lock_readiness import lock_readiness
+from backend.agents.lock_readiness import lock_readiness, query_aging
 from backend.agents.protocol_auditor import parse_protocol
 from backend.agents.pubmed import fetch_pubmed
+from backend.agents.real_data import (
+    fetch_clinvar,
+    fetch_drug_label,
+    fetch_faers,
+    fetch_gene_card,
+    fetch_live_studies,
+    fetch_recalls,
+    fetch_variant_highlights,
+)
 from backend.agents.retention import retention_risk
 from backend.agents.safety_triage import triage_records
 from backend.agents.signal_detection import detect_signals
@@ -85,6 +96,63 @@ def history_safety(protocol_id: str | None = None) -> dict[str, Any]:
 def lock_readiness_endpoint(protocol_id: str) -> dict[str, Any]:
     init_db()
     return lock_readiness(list_safety_queries(protocol_id))
+
+
+@router.get("/api/query-aging/{protocol_id}")
+def query_aging_endpoint(protocol_id: str) -> dict[str, Any]:
+    init_db()
+    return query_aging(list_safety_queries(protocol_id))
+
+
+@router.get("/api/faers")
+def faers_lookup(drug: str, event: str = "") -> dict[str, Any]:
+    if not drug.strip():
+        raise HTTPException(status_code=400, detail="drug is required")
+    return fetch_faers(drug.strip(), event)
+
+
+@router.get("/api/gene-card")
+def gene_card(gene: str) -> dict[str, Any]:
+    if not gene.strip():
+        raise HTTPException(status_code=400, detail="gene is required")
+    card = fetch_gene_card(gene.strip())
+    card["variant_highlights"] = fetch_variant_highlights(gene.strip())
+    return card
+
+
+@router.get("/api/drug-safety")
+def drug_safety(drug: str, event: str = "") -> dict[str, Any]:
+    if not drug.strip():
+        raise HTTPException(status_code=400, detail="drug is required")
+    return {
+        "drug": drug.strip(),
+        "event": event.strip(),
+        "faers": fetch_faers(drug.strip(), event.strip()),
+        "label": fetch_drug_label(drug.strip()),
+        "recalls": fetch_recalls(drug.strip()),
+    }
+
+
+@router.get("/api/live-studies")
+def live_studies(condition: str, phase: str = "") -> dict[str, Any]:
+    if not condition.strip():
+        raise HTTPException(status_code=400, detail="condition is required")
+    return fetch_live_studies(condition.strip(), phase)
+
+
+class CrfTraceRequest(BaseModel):
+    protocol_id: str
+    fields: list[str] = []
+    previous_criteria: list[dict[str, Any]] | None = None
+
+
+@router.post("/api/crf-trace")
+def crf_trace_endpoint(body: CrfTraceRequest) -> dict[str, Any]:
+    init_db()
+    if not body.protocol_id.strip():
+        raise HTTPException(status_code=400, detail="protocol_id is required")
+    crit = audited_criteria(body.protocol_id.strip())
+    return trace_criteria(crit, body.fields, body.previous_criteria)
 
 
 class ResolveRequest(BaseModel):
@@ -379,6 +447,34 @@ def outcome_benchmark(condition: str, phase: str = "") -> dict[str, Any]:
         return fetch_ctgov_outcomes(condition.strip(), phase.strip())
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"registry lookup failed: {exc}")
+
+
+@router.get("/api/clinvar")
+def clinvar_lookup(gene: str, retmax: int = 3) -> dict[str, Any]:
+    if not gene.strip():
+        raise HTTPException(status_code=400, detail="gene is required")
+    return fetch_clinvar(gene.strip(), retmax)
+
+
+class DeviationRequest(BaseModel):
+    records: list[dict[str, Any]]
+    window_days: int = 3
+
+
+@router.post("/api/deviation-watch")
+def deviation_watch_endpoint(body: DeviationRequest) -> dict[str, Any]:
+    if not body.records:
+        raise HTTPException(status_code=400, detail="records is required")
+    return watch_deviations(body.records, body.window_days)
+
+
+class QueryAgingUpload(BaseModel):
+    records: list[dict[str, Any]]
+
+
+@router.post("/api/query-aging")
+def query_aging_upload(body: QueryAgingUpload) -> dict[str, Any]:
+    return query_aging(body.records)
 
 
 @router.get("/api/pubmed")

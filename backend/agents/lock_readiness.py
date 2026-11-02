@@ -10,10 +10,17 @@ wall clock.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 BUCKETS = ("0-7", "8-30", "31-60", "61-90", "90+")
+
+# Query routing policy: SAE queries go to drug safety on a 7-day SLA
+# (expedited-reporting clock); everything else goes to the site
+# coordinator on a 30-day SLA (the stale-query threshold). Deterministic
+# and documented here so the escalation list is auditable.
+SAE_OWNER, SAE_SLA_DAYS = "drug safety", 7
+ROUTINE_OWNER, ROUTINE_SLA_DAYS = "site coordinator", 30
 
 
 def _age_days(created: str, today: date) -> int:
@@ -79,5 +86,77 @@ def lock_readiness(
         "basis": (
             "CDM close-out rule: queries age past 30/60/90 days, SAEs "
             "reconcile to resolved, and lock waits for green."
+        ),
+    }
+
+
+def _route(query: dict[str, Any]) -> tuple[str, int]:
+    """Owner + SLA days for one query, per the routing policy above."""
+    if query.get("is_sae"):
+        return SAE_OWNER, SAE_SLA_DAYS
+    return ROUTINE_OWNER, ROUTINE_SLA_DAYS
+
+
+def _escalation(days_overdue: int) -> str:
+    if days_overdue > 60:
+        return "critical"
+    if days_overdue > 30:
+        return "escalate"
+    if days_overdue > 0:
+        return "overdue"
+    return "on-track"
+
+
+def _due_date(created: str, sla_days: int) -> str | None:
+    try:
+        day = datetime.strptime(created[:10], "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+    return (day + timedelta(days=sla_days)).isoformat()
+
+
+def query_aging(
+    queries: list[dict[str, Any]], today: date | None = None
+) -> dict[str, Any]:
+    """Owner-routed query aging: due dates, SLA breaches, escalation list."""
+    today = today or date.today()
+    rows = []
+    for q in queries:
+        if (q.get("resolution_status") or "") == "RESOLVED":
+            continue
+        created = str(q.get("created_at", ""))
+        age = _age_days(created, today)
+        owner, sla = _route(q)
+        overdue = max(0, age - sla)
+        rows.append(
+            {
+                "id": str(q.get("id", "?")),
+                "age_days": age,
+                "bucket": _bucket(age),
+                "owner": owner,
+                "sla_days": sla,
+                "due_date": _due_date(created, sla),
+                "days_overdue": overdue,
+                "escalation": _escalation(overdue),
+            }
+        )
+    owners = sorted({r["owner"] for r in rows})
+    matrix = {o: {b: 0 for b in BUCKETS} for o in owners}
+    for r in rows:
+        matrix[r["owner"]][r["bucket"]] += 1
+    escalated = sorted(
+        (r for r in rows if r["days_overdue"] > 0),
+        key=lambda r: (-r["days_overdue"], r["id"]),
+    )
+    return {
+        "rows": rows,
+        "owner_matrix": matrix,
+        "escalation_list": escalated,
+        "n_open": len(rows),
+        "n_overdue": len(escalated),
+        "basis": (
+            "Routing policy: SAE queries to drug safety (7d SLA), "
+            "routine queries to site coordinator (30d SLA). "
+            "Overdue past 30d escalates, past 60d is critical."
         ),
     }

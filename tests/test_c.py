@@ -7,8 +7,9 @@ from pathlib import Path
 
 from backend.agents.adaptive_design import group_sequential
 from backend.agents.consent_helper import check_consent
+from backend.agents.crf_trace import trace_criteria
 from backend.agents.csm import csm_screen, funnel_flags, poisson_sf, robust_z
-from backend.agents.lock_readiness import lock_readiness
+from backend.agents.lock_readiness import lock_readiness, query_aging
 from backend.database import (
     init_db,
     insert_safety_query,
@@ -105,6 +106,113 @@ class LockTests(unittest.TestCase):
             rows = list_safety_queries("PX", db_path=db)
             self.assertEqual(rows[0]["resolution_status"], "RESOLVED")
             self.assertFalse(update_safety_resolution("nope", "RESOLVED", db_path=db))
+
+
+class QueryAgingTests(unittest.TestCase):
+    def test_routing_and_breach(self):
+        qs = [
+            {
+                "id": "sae-1",
+                "created_at": "2026-10-20 10:00:00",
+                "resolution_status": "TRIAGED",
+                "is_sae": True,
+            },
+            {
+                "id": "old-1",
+                "created_at": "2026-09-01 10:00:00",
+                "resolution_status": "OPEN",
+            },
+            {
+                "id": "fresh-1",
+                "created_at": "2026-10-30 10:00:00",
+                "resolution_status": "TRIAGED",
+            },
+            {
+                "id": "done-1",
+                "created_at": "2026-08-01 10:00:00",
+                "resolution_status": "RESOLVED",
+            },
+        ]
+        r = query_aging(qs, date(2026, 11, 1))
+        by_id = {row["id"]: row for row in r["rows"]}
+        self.assertEqual(by_id["sae-1"]["owner"], "drug safety")
+        self.assertEqual(by_id["sae-1"]["sla_days"], 7)
+        self.assertEqual(by_id["sae-1"]["days_overdue"], 5)
+        self.assertEqual(by_id["sae-1"]["escalation"], "overdue")
+        self.assertEqual(by_id["old-1"]["owner"], "site coordinator")
+        self.assertEqual(by_id["old-1"]["sla_days"], 30)
+        self.assertEqual(by_id["old-1"]["days_overdue"], 31)
+        self.assertEqual(by_id["old-1"]["escalation"], "escalate")
+        self.assertEqual(by_id["fresh-1"]["escalation"], "on-track")
+        self.assertNotIn("done-1", by_id)
+        self.assertEqual(r["owner_matrix"]["drug safety"]["8-30"], 1)
+        self.assertEqual(r["owner_matrix"]["site coordinator"]["61-90"], 1)
+        self.assertEqual([e["id"] for e in r["escalation_list"]], ["old-1", "sae-1"])
+        self.assertEqual(r["n_overdue"], 2)
+
+    def test_empty_queries(self):
+        r = query_aging([], date(2026, 11, 1))
+        self.assertEqual(r["rows"], [])
+        self.assertEqual(r["escalation_list"], [])
+        self.assertEqual(r["n_overdue"], 0)
+
+
+class CrfTraceTests(unittest.TestCase):
+    def _criteria(self):
+        return {
+            "inclusion_criteria": [
+                {
+                    "id": "INC-01",
+                    "variable": "absolute neutrophil count",
+                    "operator": ">=",
+                    "value": 1.5,
+                    "unit": "K/uL",
+                    "raw_text": "ANC >= 1.5 K/uL",
+                },
+                {
+                    "id": "INC-02",
+                    "variable": "hemoglobin",
+                    "operator": ">=",
+                    "value": 9.0,
+                    "unit": "g/dL",
+                    "raw_text": "Hemoglobin >= 9 g/dL",
+                },
+            ],
+            "exclusion_criteria": [
+                {
+                    "id": "EXC-01",
+                    "variable": "myocardial infarction",
+                    "operator": "=",
+                    "value": "history",
+                    "unit": "",
+                    "raw_text": "History of MI within 6 months",
+                },
+            ],
+        }
+
+    def test_covered_and_missing(self):
+        r = trace_criteria(
+            self._criteria(), ["anc_result", "hemoglobin_g_dl", "visit_date"]
+        )
+        by_id = {row["id"]: row for row in r["rows"]}
+        self.assertEqual(by_id["INC-01"]["status"], "covered")
+        self.assertIn("anc_result", by_id["INC-01"]["matched_fields"])
+        self.assertEqual(by_id["INC-02"]["status"], "covered")
+        self.assertEqual(by_id["EXC-01"]["status"], "missing")
+        self.assertEqual(r["summary"]["covered"], 2)
+        self.assertEqual(r["summary"]["missing"], 1)
+        self.assertEqual(r["stale"], [])
+
+    def test_stale_after_amendment(self):
+        current = self._criteria()
+        previous = [
+            {"id": "INC-01", "raw_text": "ANC >= 1.0 K/uL"},
+            {"id": "INC-09", "raw_text": "Removed criterion"},
+        ]
+        r = trace_criteria(current, ["anc_result"], previous_criteria=previous)
+        kinds = {(s["id"], s["change"]) for s in r["stale"]}
+        self.assertIn(("INC-09", "removed"), kinds)
+        self.assertIn(("INC-01", "changed"), kinds)
 
 
 class AdaptiveTests(unittest.TestCase):
