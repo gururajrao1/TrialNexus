@@ -181,7 +181,7 @@ an independent benchmark of the matcher, shipped in the product.
 
 ### 14. Warning letters — "has FDA already cited this failure?"
 
-Click **14 Warning letters**. Expect: your five saved letters indexed by firm, CMS number, and violation themes (CAPA, design control, promotion…), then a cross-check box — type a finding in plain words ("site closed a CAPA with no effectiveness check") and get the ranked FDA violations it resembles, with the cited text, the trial-world analogue, and a suggested deviation tier that links to the owning panel.
+Click **13 Warning letters** in the sidebar. Expect: your five saved letters indexed by firm, CMS number, and violation themes (CAPA, design control, promotion…), then a cross-check box — type a finding in plain words ("site closed a CAPA with no effectiveness check") and get the ranked FDA violations it resembles, with the cited text, the trial-world analogue, and a suggested deviation tier that links to the owning panel.
 
 ## 5-minute demo script (for explaining it to someone else)
 

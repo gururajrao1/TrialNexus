@@ -179,7 +179,11 @@ globalThis.fetch = async (url) => {
       looks: [{ t: 0.5, alpha_spent: 0, z_efficacy: 0, p_efficacy: 0 }], basis: "b" },
     "/api/consent-check/PROT-TNX-001": { score: 90, n_sentences: 1,
       long_sentences: [], jargon_hits: [], suggestions: [], basis: "b" },
-    "/api/warning-letters": { letters: [], count: 0, note: "n" },
+    "/api/warning-letters": {
+      letters: [{ id: "w.txt", firm: "Example Firm", cms: "1", date: "d",
+        recipient: "r", office: "o", product_area: "devices",
+        themes: ["capa", "design_control"], n_violations: 2 }],
+      count: 1, note: "n" },
   };
   if (path.startsWith("/api/live-studies")) {
     return { ok: true,
@@ -213,6 +217,11 @@ assert.ok((elements.get("snapSub")?.textContent || "").includes("2 protocols"),
   "snapshot subtitle not built from live counts");
 assert.ok((elements.get("globalPid")?.innerHTML || "").includes("PROT-TNX-002"),
   "protocol dropdown was never filled from /api/protocols");
+// letters table renders chips as markup, not escaped text
+const lettersHtml = elements.get("lettersResult")?.innerHTML || "";
+assert.ok(lettersHtml.includes("class='chip'"), "letter themes not rendered as chips");
+assert.ok(!lettersHtml.includes("&lt;span"), "letter table shows escaped markup: " +
+  lettersHtml.slice(0, 120));
 // tab switching still wired
 for (const fn of listeners.get("tabbtn-sites")?.click || []) fn();
 assert.equal(elements.get("tab-sites").hidden, false);

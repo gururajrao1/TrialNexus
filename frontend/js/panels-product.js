@@ -198,12 +198,16 @@ export async function runDeviation() {
         site: s.site_id, tier: s.tier, n: s.n_findings,
       })), [["site", "Site"], ["tier", "SDV tier"], ["n", "Findings"]]) : "") +
       ((r.site_signals || []).length ? "<h3>Rate signals vs portfolio</h3>" +
-        table((r.site_signals || []).map((s) => ({
-          site: s.site_id + (s.flag ? ' <span class="badge b-review">rate signal</span>' : ""),
-          rate: esc((s.rate * 100).toFixed(1)) + "% (" + esc(s.n_affected) + "/" + esc(s.n_visits) + ")",
-          bg: esc((s.background_rate * 100).toFixed(1)) + "%",
-          p: esc(s.p_value),
-        })), [["site", "Site"], ["rate", "Affected"], ["bg", "Portfolio"], ["p", "p-value"]]) : "") +
+        '<table class="grid"><thead><tr><th>Site</th><th>Affected</th>' +
+        "<th>Portfolio</th><th>p-value</th></tr></thead><tbody>" +
+        (r.site_signals || []).map((s) =>
+          "<tr><td>" + esc(s.site_id) +
+          (s.flag ? " <span class='badge b-review'>rate signal</span>" : "") + "</td>" +
+          "<td>" + esc((s.rate * 100).toFixed(1)) + "% (" +
+          esc(s.n_affected) + "/" + esc(s.n_visits) + ")</td>" +
+          "<td>" + esc((s.background_rate * 100).toFixed(1)) + "%</td>" +
+          "<td>" + esc(s.p_value) + "</td></tr>").join("") +
+        "</tbody></table>" : "") +
       (r.findings.length ? table(r.findings.map((f) => ({
         site: f.site_id, subj: f.subject, visit: f.visit, type: f.type,
         sev: f.severity, late: f.days_late, detail: f.detail,
@@ -227,14 +231,17 @@ export async function runLetters() {
       return;
     }
     el.innerHTML = "<h3>" + esc(r.count) + " letter(s) indexed</h3>" +
-      table(r.letters.map((l) => ({
-        firm: esc(l.firm) + (l.cms ? " <span class='muted'>CMS #" + esc(l.cms) + "</span>" : ""),
-        date: esc(l.date || "—"),
-        office: esc(l.office || "—"),
-        themes: (l.themes || []).map((t) => '<span class="chip">' + esc(t.replace(/_/g, " ")) + "</span>").join(" "),
-        viol: esc(l.n_violations),
-      })), [["firm", "Firm"], ["date", "Date"], ["office", "Office"],
-            ["themes", "Violation themes"], ["viol", "Charges"]]) +
+      '<table class="grid"><thead><tr><th>Firm</th><th>Date</th><th>Office</th>' +
+      "<th>Violation themes</th><th>Charges</th></tr></thead><tbody>" +
+      r.letters.map((l) =>
+        "<tr><td>" + esc(l.firm) +
+        (l.cms ? "<br><span class='muted'>CMS #" + esc(l.cms) + "</span>" : "") + "</td>" +
+        "<td>" + esc(l.date || "—") + "</td>" +
+        "<td>" + esc(l.office || "—") + "</td>" +
+        "<td>" + (l.themes || []).map((t) =>
+          "<span class='chip'>" + esc(t.replace(/_/g, " ")) + "</span>").join(" ") + "</td>" +
+        "<td>" + esc(l.n_violations) + "</td></tr>").join("") +
+      "</tbody></table>" +
       "<p class='muted'>" + esc(r.note) + "</p>";
   } catch (err) { fail(el, err); }
 }
