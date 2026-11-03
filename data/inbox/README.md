@@ -15,6 +15,7 @@ anywhere, and nothing here touches the database — files are read on demand.
 | `visits.json` | 06 Monitoring → deviation watch | JSON list: site_id, subject, visit, planned_day, actual_day, assessments_required[], assessments_done[], consent_date, visit_date (YYYY-MM-DD) |
 | `queries.json` | 12 Safety → query aging | JSON list: id, created_at (`YYYY-MM-DD HH:MM:SS`), resolution_status (OPEN/RESOLVED), is_sae |
 | `ecrf_fields.txt` | 12 Safety → CRF trace | One field name per line |
+| `warning-letter-*.txt` | 14 Warning letters | FDA warning letter saved as plain text (paste from the FDA database), one file per letter |
 
 Copy the shapes from `demo/` — same columns, your data.
 

@@ -1,6 +1,6 @@
 /* Product panel runners: diversity, history, startup, monitoring, finder, external. */
 import { $, esc, fail, getJSON, postJSON } from "./api.js";
-import { COHORT_BADGE, table } from "./ui.js";
+import { COHORT_BADGE, busy, table } from "./ui.js";
 import { demoBundles, diversityBundles, selectedExtBundles } from "./data.js";
 
 export async function loadDiversityDefaults() {
@@ -10,6 +10,7 @@ export async function loadDiversityDefaults() {
 
 export async function runDiversity() {
   const el = $("diversityResult");
+  busy(el);
   try {
     let targets = null;
     const txt = $("diversityTargets").value.trim();
@@ -33,6 +34,7 @@ export async function runDiversity() {
 
 export async function runHistory() {
   const el = $("historyResult");
+  busy(el);
   try {
     const pid = $("historyPid").value.trim();
     const q = pid ? "?protocol_id=" + encodeURIComponent(pid) : "";
@@ -56,6 +58,7 @@ export async function runHistory() {
 
 export async function runStartup() {
   const el = $("startupResult");
+  busy(el);
   try {
     const r = await getJSON("/api/startup");
     const sel = $("startupSite");
@@ -77,6 +80,7 @@ export async function runStartup() {
 
 export async function runMonitoring() {
   const el = $("monitoringResult");
+  busy(el);
   try {
     const r = await getJSON("/api/monitoring");
     el.innerHTML = r.sites.map((s) => {
@@ -114,6 +118,7 @@ export async function runMonitoring() {
 
 export async function runFinder() {
   const el = $("finderResult");
+  busy(el);
   try {
     const sel = $("finderBundle");
     if (!sel.options.length) {
@@ -133,6 +138,7 @@ export async function runFinder() {
 
 export async function runExternal() {
   const el = $("externalResult");
+  busy(el);
   try {
     const relax = $("relaxIds").value.split(",").map((s) => s.trim()).filter(Boolean);
     const r = await postJSON("/api/external-control",
@@ -153,6 +159,7 @@ export async function runExternal() {
 
 export async function runForensics() {
   const el = $("forensicResult");
+  busy(el);
   try {
     const pid = $("historyPid").value.trim();
     const q = pid ? "?protocol_id=" + encodeURIComponent(pid) : "";
@@ -174,6 +181,7 @@ export async function runForensics() {
 
 export async function runDeviation() {
   const el = $("devResult");
+  busy(el);
   try {
     const txt = $("devJson").value.trim();
     if (!txt) {
@@ -204,5 +212,60 @@ export async function runDeviation() {
         ["detail", "Detail"]])
         : "<p class='muted'>No deviations in this upload.</p>") +
       "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+const TIER_BADGE = { critical: "b-inelig", major: "b-review", minor: "b-elig" };
+
+export async function runLetters() {
+  const el = $("lettersResult");
+  busy(el);
+  try {
+    const r = await getJSON("/api/warning-letters");
+    if (!r.count) {
+      el.innerHTML = "<p class='muted'>" + esc(r.note) + "</p>";
+      return;
+    }
+    el.innerHTML = "<h3>" + esc(r.count) + " letter(s) indexed</h3>" +
+      table(r.letters.map((l) => ({
+        firm: esc(l.firm) + (l.cms ? " <span class='muted'>CMS #" + esc(l.cms) + "</span>" : ""),
+        date: esc(l.date || "—"),
+        office: esc(l.office || "—"),
+        themes: (l.themes || []).map((t) => '<span class="chip">' + esc(t.replace(/_/g, " ")) + "</span>").join(" "),
+        viol: esc(l.n_violations),
+      })), [["firm", "Firm"], ["date", "Date"], ["office", "Office"],
+            ["themes", "Violation themes"], ["viol", "Charges"]]) +
+      "<p class='muted'>" + esc(r.note) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runLettersCheck() {
+  const el = $("lettersCheckResult");
+  busy(el);
+  try {
+    const txt = $("lettersText").value.trim();
+    if (!txt) {
+      el.innerHTML = "<p class='muted'>Describe a finding first.</p>";
+      return;
+    }
+    const r = await postJSON("/api/warning-letters/check", { text: txt });
+    if (!r.matches.length) {
+      el.innerHTML = "<p class='muted'>No indexed violation resembles this finding — " +
+        "nothing in " + esc(r.n_letters) + " letter(s) shares its themes or terms.</p>";
+      return;
+    }
+    el.innerHTML = r.matches.map((m, i) =>
+      "<h3>#" + (i + 1) + " " + esc(m.firm) +
+      ' <span class="badge ' + (TIER_BADGE[m.suggested_tier] || "b-review") + '">' +
+      esc(m.suggested_tier) + "</span></h3>" +
+      "<p class='muted'>" + (m.cms ? "CMS #" + esc(m.cms) + " · " : "") +
+      esc(m.date || "undated") + " · " +
+      (m.matched_themes || []).map((t) => '<span class="chip">' + esc(t.label) + "</span>").join(" ") + "</p>" +
+      "<blockquote>" + esc((m.excerpt || "").slice(0, 500)) + "</blockquote>" +
+      ((m.trial_actions || []).length ? "<p><strong>Trial analogue:</strong> " +
+        esc(m.trial_actions.join("; ")) + "</p>" : "") +
+      ((m.panels || []).length ? "<p><button type='button' data-goto='" + esc(m.panels[0]) +
+        "'>Open the owning panel</button></p>" : "")
+    ).join("");
   } catch (err) { fail(el, err); }
 }

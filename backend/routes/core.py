@@ -20,8 +20,10 @@ from backend.agents.llm_rationale import annotate_results
 from backend.agents.pdf_ingest import extract_pdf_text
 from backend.agents.prescreen_queue import rank_prescreen
 from backend.agents.protocol_auditor import parse_protocol
+from backend.agents.real_data import attach_rxnorm
 from backend.agents.safety_triage import triage_records
 from backend.agents.site_scout import fetch_ctgov_competitors, score_sites
+from backend.agents.warning_letters import cross_check, load_letters
 from backend.config import AE_STREAM, FHIR_DIR
 from backend.database import (
     delete_protocol,
@@ -30,12 +32,28 @@ from backend.database import (
     insert_patient_evaluation,
     insert_protocol,
     insert_safety_query,
+    list_protocols,
     save_protocol_audit,
     save_site_feasibility,
     table_counts,
 )
 
 router = APIRouter()
+
+
+@router.get("/api/protocols")
+def protocols() -> list[dict[str, Any]]:
+    """Light protocol list for dropdowns: id, title, phase, indication."""
+    init_db()
+    return [
+        {
+            "protocol_id": p["id"],
+            "title": p.get("title", ""),
+            "phase": p.get("phase", ""),
+            "indication": p.get("indication", ""),
+        }
+        for p in list_protocols()
+    ]
 
 
 @router.get("/api/snapshot")
@@ -112,6 +130,43 @@ def inbox_slot(slot: str) -> dict[str, Any]:
     if not ok:
         raise HTTPException(status_code=404, detail=text)
     return {"slot": slot, "text": text}
+
+
+@router.get("/api/warning-letters")
+def warning_letters() -> dict[str, Any]:
+    """Index of the user's warning letters in data/inbox/ (empty when none)."""
+    letters = load_letters()
+    return {
+        "letters": [
+            {k: v for k, v in letter.items() if k != "violations"} for letter in letters
+        ],
+        "count": len(letters),
+        "note": (
+            "Save FDA warning letters as data/inbox/warning-letter-*.txt "
+            "to populate this index."
+            if not letters
+            else f"{len(letters)} letter(s) indexed from your inbox."
+        ),
+    }
+
+
+class WarningLetterCheckRequest(BaseModel):
+    text: str = ""
+
+
+@router.post("/api/warning-letters/check")
+def warning_letters_check(req: WarningLetterCheckRequest) -> dict[str, Any]:
+    """Rank indexed violations against a free-text finding."""
+    letters = load_letters()
+    if not letters:
+        raise HTTPException(
+            status_code=404,
+            detail="No warning letters in your inbox yet — save them as "
+            "data/inbox/warning-letter-*.txt first.",
+        )
+    if not req.text.strip():
+        raise HTTPException(status_code=422, detail="Finding text is empty.")
+    return {"matches": cross_check(req.text, letters), "n_letters": len(letters)}
 
 
 class ScoreSitesRequest(BaseModel):
@@ -319,6 +374,7 @@ def prescreen_queue_endpoint(body: PrescreenRequest) -> dict[str, Any]:
 def triage_safety_endpoint(body: TriageRequest) -> dict[str, Any]:
     init_db()
     result = triage_records(body.records)
+    attach_rxnorm(result["triaged_records"])
     grade_map = {
         "Grade 1": "MILD",
         "Grade 2": "MODERATE",

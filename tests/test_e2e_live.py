@@ -126,6 +126,14 @@ def main():
         and snap["ae_records"] >= 4,
         snap,
     )
+    protos = json.loads(get("/api/protocols")[1])
+    check(
+        "protocol dropdown lists seeded protocols",
+        isinstance(protos, list)
+        and len(protos) >= 1
+        and all("protocol_id" in p and "title" in p for p in protos),
+        [p["protocol_id"] for p in protos] if isinstance(protos, list) else protos,
+    )
     demo = json.loads(get("/api/demo-data")[1])
 
     # 1. Protocol amendments

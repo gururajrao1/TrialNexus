@@ -18,7 +18,7 @@
     </div>
     <div class="proto">
       <label for="globalPid">Protocol</label>
-      <input id="globalPid" value="PROT-TNX-001" size="16" spellcheck="false">
+      <select id="globalPid"><option value="PROT-TNX-001">PROT-TNX-001</option></select>
       <p class="proto-note">Applies to every panel below.</p>
     </div>
     <nav class="nav" aria-label="Workflows">
@@ -38,6 +38,7 @@
       <button id="tabbtn-mcode" aria-controls="tab-mcode" aria-selected="false"><span class="nav-n">11</span>mCODE summary</button>
       <p class="nav-group">Safety</p>
       <button id="tabbtn-safety" aria-controls="tab-safety" aria-selected="false"><span class="nav-n">12</span>Safety triage</button>
+      <button id="tabbtn-letters" aria-controls="tab-letters" aria-selected="false"><span class="nav-n">14</span>Warning letters</button>
       <p class="nav-group">Record</p>
       <button id="tabbtn-history" aria-controls="tab-history" aria-selected="false"><span class="nav-n">13</span>History &amp; export</button>
     </nav>
@@ -61,7 +62,7 @@
         <div class="snap-head">
           <div>
             <h2>Trial snapshot</h2>
-            <p class="muted snap-sub">Seeded demo: NSCLC protocol, 2 sites, 2 FHIR patients, 4 safety records.</p>
+            <p class="muted snap-sub" id="snapSub">Loading demo state…</p>
           </div>
           <div class="snap-actions">
             <button id="runAllBtn" type="button" class="btn-go">Run full workup</button>
@@ -72,7 +73,7 @@
       </section>
       <section id="tab-audit" aria-labelledby="tabbtn-audit">
         <form id="auditForm" class="controls">
-          <label>Protocol ID <input id="auditPid" value="PROT-TNX-001" size="16"></label>
+          <label>Protocol ID <select id="auditPid"><option value="PROT-TNX-001">PROT-TNX-001</option></select></label>
           <button type="submit">Run audit</button>
         </form>
         <form id="pdfForm" class="controls">
@@ -105,10 +106,19 @@
           <button type="submit">Score sites</button>
         </form>
         <div id="sitesResult" class="results"><p class="muted">Running…</p></div>
+        <h3>Verify investigator (NPI registry)</h3>
+        <form id="npiForm" class="controls">
+          <label>NPI number <input id="npiNumber" size="12" spellcheck="false"></label>
+          <label>First name <input id="npiFirst" size="14"></label>
+          <label>Last name <input id="npiLast" size="14"></label>
+          <label>State <input id="npiState" size="4"></label>
+          <button type="submit">Verify</button>
+        </form>
+        <div id="npiResult" class="results"><p class="muted">Not verified yet — opt-in live lookup.</p></div>
       </section>
       <section id="tab-cohort" aria-labelledby="tabbtn-cohort" hidden>
         <form id="cohortForm" class="controls">
-          <label>Protocol ID <input id="cohortPid" value="PROT-TNX-001" size="16"></label>
+          <label>Protocol ID <select id="cohortPid"><option value="PROT-TNX-001">PROT-TNX-001</option></select></label>
           <fieldset class="grow"><legend>FHIR bundles</legend><div id="bundleList"></div></fieldset>
           <button type="submit">Match cohort</button>
         </form>
@@ -148,7 +158,7 @@
               <textarea id="aeJson" rows="12" spellcheck="false"></textarea>
             </label>
           </details>
-          <label>Protocol ID <input id="safetyPid" value="PROT-TNX-001" size="16"></label>
+          <label>Protocol ID <select id="safetyPid"><option value="PROT-TNX-001">PROT-TNX-001</option><option value="UNASSIGNED">UNASSIGNED</option></select></label>
           <button type="submit">Triage</button>
         </form>
         <div id="safetyResult" class="results"><p class="muted">Running…</p></div>
@@ -194,6 +204,20 @@
         </form>
         <div id="signalsResult" class="results"><p class="muted">Not screened yet.</p></div>
       </section>
+      <section id="tab-letters" aria-labelledby="tabbtn-letters" hidden>
+        <h3>Letter library (your files)</h3>
+        <p class="muted">FDA warning letters you saved as <code>data/inbox/warning-letter-*.txt</code> — indexed by firm, charges, and violation themes.</p>
+        <div id="lettersResult" class="results"><p class="muted">Loading…</p></div>
+        <h3>Cross-check a finding</h3>
+        <p class="job"><strong>The job:</strong> describe a finding in your trial (a deviation, a CAPA, a promotion draft) in plain words. The app ranks the indexed FDA violations it resembles, with the cited text, the trial-world analogue, and a suggested deviation tier.</p>
+        <form id="lettersForm" class="controls">
+          <label class="grow">Finding (plain words)
+            <textarea id="lettersText" rows="3" spellcheck="false" placeholder="Site closed a CAPA with no effectiveness check after repeated deviations"></textarea>
+          </label>
+          <button type="submit">Check against letters</button>
+        </form>
+        <div id="lettersCheckResult" class="results"><p class="muted">Not checked yet.</p></div>
+      </section>
       <section id="tab-diversity" aria-labelledby="tabbtn-diversity" hidden>
         <form id="diversityForm" class="controls">
           <details class="adv grow">
@@ -209,7 +233,7 @@
       </section>
       <section id="tab-history" aria-labelledby="tabbtn-history" hidden>
         <form id="historyForm" class="controls">
-          <label>Protocol ID <input id="historyPid" value="PROT-TNX-001" size="16"></label>
+          <label>Protocol ID <select id="historyPid"><option value="PROT-TNX-001">PROT-TNX-001</option></select></label>
           <button type="submit">Refresh history</button>
           <span id="exportLinks" class="muted"></span>
         </form>

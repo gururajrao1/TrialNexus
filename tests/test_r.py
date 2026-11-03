@@ -86,6 +86,20 @@ class SignalTests(unittest.TestCase):
         ic = ic_shrunk(a, b, c, d)
         self.assertLess(ic, math.log2(prr))
 
+    def test_rxcui_groups_spelling_variants(self):
+        tri = [
+            {**_tri("Advil", "Liver"), "rxcui": "5640"},
+            {**_tri("ibuprofen", "Liver"), "rxcui": "5640"},
+            {**_tri("PBO", "Liver"), "rxcui": ""},
+        ]
+        rows = detect_signals(tri)["pairs"]
+        by_drug = {r["drug"]: r for r in rows if r["event"] == "Liver"}
+        self.assertIn("5640", by_drug)
+        self.assertEqual(by_drug["5640"]["n"], 2)
+        self.assertEqual(by_drug["5640"]["drug_label"], "Advil")
+        self.assertNotIn("Advil", by_drug)
+        self.assertNotIn("ibuprofen", by_drug)
+
     def test_statuses(self):
         tri = [_tri("TNX", "Liver") for _ in range(3)]
         tri += [_tri("TNX", "Other"), _tri("PBO", "Other"), _tri("PBO", "Other2")]

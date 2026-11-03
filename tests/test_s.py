@@ -14,7 +14,10 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(BACKEND))
 
 from agents.cohort_matcher import evaluate_patient as evaluate  # noqa: E402
-from agents.enrollment_forecast import site_priors_from_metrics  # noqa: E402
+from agents.enrollment_forecast import (  # noqa: E402
+    backtest_accrual,
+    site_priors_from_metrics,
+)
 from agents.failure_forensics import forensic_report  # noqa: E402
 from agents.protocol_auditor import parse_protocol  # noqa: E402
 from agents.relaxation_sweep import ladder_for, sweep  # noqa: E402
@@ -157,6 +160,21 @@ class STrackTests(unittest.TestCase):
         )
         self.assertEqual(priors["SX"], {"accrual": 4.0, "months_observed": 3.0})
         self.assertNotIn("BAD", priors)
+
+    def test_backtest_constant_site(self):
+        rows = [
+            {"site_id": "SX", "month": f"2025-0{m}", "enrolled": 3} for m in range(1, 7)
+        ]
+        b = backtest_accrual(rows)
+        self.assertEqual(b["n_sites"], 1)
+        self.assertEqual(b["n_predictions"], 5)
+        self.assertLess(b["mae"], 1.0)
+        self.assertEqual(b["sites"][0]["site_id"], "SX")
+
+    def test_backtest_needs_history(self):
+        b = backtest_accrual([{"site_id": "SX", "month": "2025-01", "enrolled": 3}])
+        self.assertEqual(b["n_predictions"], 0)
+        self.assertEqual(b["mae"], 0.0)
 
     def test_outcomes_shape_never_crashes(self):
         import tempfile

@@ -6,6 +6,7 @@ import {
   runAudit,
   runCohort,
   runCrfTrace,
+  runNpi,
   runOutcomes,
   runPdf,
   runPrescreen,
@@ -24,18 +25,38 @@ import {
   runFinder,
   runForensics,
   runHistory,
+  runLetters,
+  runLettersCheck,
   runMonitoring,
   runStartup,
 } from "./panels-product.js";
 import { runMcode, runTwins, runValidity } from "./panels-tier.js";
 
 const TABS = ["audit", "sites", "cohort", "safety", "diversity", "history", "startup",
-  "monitoring", "finder", "external", "twins", "mcode", "validity"];
+  "monitoring", "finder", "external", "twins", "mcode", "validity", "letters"];
+let activeTab = "audit";
+const TAB_RUNNERS = {
+  audit: () => { runAudit(); },
+  sites: () => { runSites(); },
+  cohort: () => { runCohort(); },
+  safety: () => { runSafety(); },
+  diversity: () => { runDiversity(); },
+  history: () => { runHistory(); runForensics(); },
+  startup: () => { runStartup(); },
+  monitoring: () => { runMonitoring(); },
+  finder: () => { runFinder(); },
+  external: () => { runExternal(); },
+  twins: () => { runTwins(); },
+  mcode: () => { runMcode(); },
+  validity: () => { runValidity(); },
+  letters: () => { runLetters(); },
+};
 
 /* Tabs (sidebar buttons + deep links) */
 const tabBtns = TABS.map((n) => $("tabbtn-" + n));
 function showTab(name, push) {
   if (!TABS.includes(name)) return;
+  activeTab = name;
   const id = "tabbtn-" + name;
   tabBtns.forEach((b) => b.setAttribute("aria-selected", b.id === id ? "true" : "false"));
   TABS.forEach((n) => { $("tab-" + n).hidden = n !== name; });
@@ -71,6 +92,22 @@ if (typeof document !== "undefined" && document.addEventListener) {
 
 /* Global protocol field: one value shared by every panel. */
 const PID_FIELDS = ["auditPid", "cohortPid", "safetyPid", "historyPid"];
+const PID_SELECTS = ["globalPid", ...PID_FIELDS];
+function fillPidSelects(protocols) {
+  const ids = (protocols || []).map((p) => p.protocol_id);
+  const want = readStoredPid() || "PROT-TNX-001";
+  const pick = ids.includes(want) ? want : (ids[0] || "PROT-TNX-001");
+  const opts = ids.map((id) =>
+    '<option value="' + esc(id) + '">' + esc(id) + "</option>");
+  for (const id of PID_SELECTS) {
+    const el = $(id);
+    if (!el || el.tagName !== "SELECT") continue;
+    const extra = id === "safetyPid"
+      ? '<option value="UNASSIGNED">UNASSIGNED</option>' : "";
+    el.innerHTML = opts.join("") + extra;
+  }
+  applyPid(pick, false);
+}
 function readStoredPid() {
   try {
     if (typeof localStorage !== "undefined") return localStorage.getItem("tnx_pid") || "";
@@ -100,6 +137,12 @@ async function loadSnapshot() {
                    ["FHIR patients", s.fhir_bundles], ["Safety records", s.ae_records]];
     $("snapshot").innerHTML = cards.map(([l, n]) =>
       '<div class="metric"><span class="num">' + esc(n) + '</span><span class="lbl">' + esc(l) + "</span></div>").join("");
+    const sub = $("snapSub");
+    if (sub) sub.textContent = "Seeded demo: " + s.protocols + " protocols, " + s.sites +
+      " sites, " + s.fhir_bundles + " FHIR patients, " + s.ae_records + " safety records.";
+    try {
+      await fillPidSelects(await getJSON("/api/protocols"));
+    } catch (e) { /* keep seeded options when offline */ }
   } catch (err) {
     const pill = $("apiStatus");
     pill.textContent = "API offline";
@@ -112,6 +155,7 @@ async function loadSnapshot() {
 /* Forms */
 $("auditForm").addEventListener("submit", (e) => { e.preventDefault(); runAudit(); });
 $("sitesForm").addEventListener("submit", (e) => { e.preventDefault(); runSites(); });
+$("npiForm").addEventListener("submit", (e) => { e.preventDefault(); runNpi(); });
 $("cohortForm").addEventListener("submit", (e) => { e.preventDefault(); runCohort(); });
 $("safetyForm").addEventListener("submit", (e) => { e.preventDefault(); runSafety(); });
 $("diversityForm").addEventListener("submit", (e) => { e.preventDefault(); runDiversity(); });
@@ -130,6 +174,7 @@ $("externalForm").addEventListener("submit", (e) => { e.preventDefault(); runExt
 $("twinsForm").addEventListener("submit", (e) => { e.preventDefault(); runTwins(); });
 $("mcodeForm").addEventListener("submit", (e) => { e.preventDefault(); runMcode(); });
 $("validityForm").addEventListener("submit", (e) => { e.preventDefault(); runValidity(); });
+$("lettersForm").addEventListener("submit", (e) => { e.preventDefault(); runLettersCheck(); });
 $("sweepForm").addEventListener("submit", (e) => { e.preventDefault(); runSweep(); });
 $("retentionForm").addEventListener("submit", (e) => { e.preventDefault(); runRetention(); });
 $("outcomesForm").addEventListener("submit", (e) => { e.preventDefault(); runOutcomes(); });
@@ -235,17 +280,22 @@ const g0 = $("globalPid");
 if (g0) {
   const startPid = readStoredPid() || g0.value;
   if (startPid) applyPid(startPid, false);
-  g0.addEventListener("input", (e) => {
+  g0.addEventListener("change", (e) => {
     const v = e.target.value.trim();
-    if (v) applyPid(v, true);
+    if (!v) return;
+    applyPid(v, true);
+    try {
+      const rerun = TAB_RUNNERS[activeTab];
+      if (rerun) rerun();
+    } catch (err) { /* panel shows its own error state */ }
   });
 }
 loadSnapshot().then(loadDemo).then(loadDiversityDefaults).then(() => {
   runAudit(); runSites(); runDiversity(); runStartup(); runMonitoring(); runFinder(); runExternal();
-  runTwins(); runMcode(); runValidity(); runSweep(); runRetention(); runOutcomes();
+  runTwins(); runMcode(); runValidity(); runLetters(); runSweep(); runRetention(); runOutcomes();
   Promise.all([runCohort(), runSafety()]).then(() => { runHistory(); runForensics(); });
 }).catch(() => {
-  for (const id of ["auditResult", "sitesResult", "cohortResult", "safetyResult", "diversityResult", "historyResult", "startupResult", "monitoringResult", "finderResult", "externalResult", "twinsResult", "mcodeResult", "validityResult", "sweepResult", "retentionResult", "forensicResult", "outcomesResult", "pubmedResult"]) {
+  for (const id of ["auditResult", "sitesResult", "cohortResult", "safetyResult", "diversityResult", "historyResult", "startupResult", "monitoringResult", "finderResult", "externalResult", "twinsResult", "mcodeResult", "validityResult", "lettersResult", "sweepResult", "retentionResult", "forensicResult", "outcomesResult", "pubmedResult"]) {
     $(id).innerHTML = '<div class="error">API unreachable. Start it with: uvicorn backend.app:app --port 8000</div>';
   }
 });

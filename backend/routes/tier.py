@@ -11,7 +11,11 @@ from pydantic import BaseModel
 
 from backend.agents.adaptive_design import group_sequential
 from backend.agents.burden_scorer import score_burden
-from backend.agents.enrollment_forecast import forecast, site_priors_from_metrics
+from backend.agents.enrollment_forecast import (
+    backtest_accrual,
+    forecast,
+    site_priors_from_metrics,
+)
 from backend.agents.mcode import mcode_profile
 from backend.agents.n2c2_harness import CRITERIA, load_fixture, micro_f1
 from backend.agents.protocol_auditor import parse_protocol
@@ -96,7 +100,9 @@ def forecast_endpoint(body: ForecastRequest) -> dict[str, Any]:
     sources: dict[int, str] = {}
     if body.use_site_history:
         init_db()
-        priors = site_priors_from_metrics(list_site_metrics())
+        metrics = list_site_metrics()
+        priors = site_priors_from_metrics(metrics)
+        history_check = backtest_accrual(metrics)
         merged = []
         for i, s in enumerate(sites):
             sid = str(s.get("id", s.get("site_id", "")))
@@ -116,6 +122,8 @@ def forecast_endpoint(body: ForecastRequest) -> dict[str, Any]:
     )
     if sources:
         out["site_sources"] = sources
+    if body.use_site_history:
+        out["backtest"] = history_check
     return out
 
 

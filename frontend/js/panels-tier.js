@@ -1,10 +1,11 @@
 /* Tier 1+2 panel runners: synthetic twins, mCODE summary, model validity. */
 import { $, esc, fail, getJSON, postJSON } from "./api.js";
-import { table } from "./ui.js";
+import { busy, table } from "./ui.js";
 import { demoBundles } from "./data.js";
 
 export async function runTwins() {
   const el = $("twinsResult");
+  busy(el);
   try {
     const sel = $("twinsBundle");
     if (!sel.options.length) {
@@ -35,6 +36,7 @@ export async function runTwins() {
 
 export async function runMcode() {
   const el = $("mcodeResult");
+  busy(el);
   try {
     const sel = $("mcodeBundle");
     if (!sel.options.length) {
@@ -59,6 +61,7 @@ export async function runMcode() {
 
 export async function runValidity() {
   const el = $("validityResult");
+  busy(el);
   try {
     const r = await getJSON("/api/n2c2-status");
     el.innerHTML = "<h3>n2c2 2018 cohort-selection benchmark</h3>" +

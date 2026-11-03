@@ -73,8 +73,10 @@ Click **04 Site feasibility → Score sites** (target 450). Expect: SITE-001
 GO (80.5), SITE-003 CONDITIONAL (64.6), SITE-002 NO-GO (43.8), each with the
 35/25/20/20 breakdown (velocity / competition / regulatory / capacity),
 risks, a portfolio months-to-last-patient-in estimate, and a Poisson-Gamma
-enrollment forecast (P10/P50/P90 from 20,000 simulations). Tick **Use live
-CT.gov counts** to benchmark competitors against the real registry
+enrollment forecast (P10/P50/P90 from 20,000 simulations), plus a
+history check: the same Gamma posterior hindcast against past site months
+(MAE in patients/month — the forecast graded against its own past). Tick
+**Use live CT.gov counts** to benchmark competitors against the real registry
 (source chips read `live`, `cache`, or `offline-fallback`). Cross-links open
 study startup and monitoring KRIs.
 
@@ -176,6 +178,10 @@ no longer counts as the gene.
 Click **03 Model validity**. Expect: fixture micro-F1 1.0 across 13
 criteria, real-data status, and DUA instructions for the full n2c2 set —
 an independent benchmark of the matcher, shipped in the product.
+
+### 14. Warning letters — "has FDA already cited this failure?"
+
+Click **14 Warning letters**. Expect: your five saved letters indexed by firm, CMS number, and violation themes (CAPA, design control, promotion…), then a cross-check box — type a finding in plain words ("site closed a CAPA with no effectiveness check") and get the ranked FDA violations it resembles, with the cited text, the trial-world analogue, and a suggested deviation tier that links to the owning panel.
 
 ## 5-minute demo script (for explaining it to someone else)
 

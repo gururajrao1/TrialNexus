@@ -91,19 +91,28 @@ def ic_shrunk(a: float, b: float, c: float, d: float) -> float:
 
 
 def detect_signals(triaged: list[dict[str, Any]]) -> dict[str, Any]:
-    """Screen every (drug, preferred term) pair. Never raises on shape."""
+    """Screen every (drug, preferred term) pair. Never raises on shape.
+
+    Comparator key is the RxNorm concept ID when the route layer attached
+    one, so spelling variants of one drug screen as one drug; the raw
+    spelling is preserved as drug_label.
+    """
     pairs = [
         (
-            str(t.get("suspect_drug", "unknown") or "unknown"),
+            str(t.get("rxcui") or t.get("suspect_drug", "unknown") or "unknown"),
             str((t.get("meddra_classification", {}) or {}).get("preferred_term", "?")),
             str((t.get("meddra_classification", {}) or {}).get("soc", "?")),
+            str(t.get("suspect_drug", "unknown") or "unknown"),
         )
         for t in triaged
     ]
-    drugs = sorted({d for d, _, _ in pairs if d != "unknown"})
-    events = sorted({(e, s) for _, e, s in pairs})
+    drugs = sorted({d for d, _, _, _ in pairs if d != "unknown"})
+    events = sorted({(e, s) for _, e, s, _ in pairs})
+    labels = {}
+    for d, _, _, lab in pairs:
+        labels.setdefault(d, lab)
     rows = []
-    flat = [(x, y) for x, y, _ in pairs]
+    flat = [(x, y) for x, y, _, _ in pairs]
     for drug in drugs:
         for event, soc in events:
             n = sum(1 for x, y in flat if x == drug and y == event)
@@ -123,6 +132,7 @@ def detect_signals(triaged: list[dict[str, Any]]) -> dict[str, Any]:
             rows.append(
                 {
                     "drug": drug,
+                    "drug_label": labels.get(drug, drug),
                     "event": event,
                     "soc": soc,
                     "n": n,

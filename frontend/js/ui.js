@@ -23,6 +23,10 @@ export function preJSON(obj) {
   return '<pre class="json">' + esc(JSON.stringify(obj, null, 1)) + "</pre>";
 }
 
+export function busy(el, msg) {
+  if (el) el.innerHTML = "<p class='muted'>" + esc(msg || "Working…") + "</p>";
+}
+
 export const SITE_BADGE = { GO: "b-go", CONDITIONAL: "b-cond", "NO-GO": "b-nogo" };
 export const COHORT_BADGE = { ELIGIBLE: "b-elig", INELIGIBLE: "b-inelig", REVIEW_REQUIRED: "b-review" };
 

@@ -4,9 +4,10 @@
 import assert from "node:assert/strict";
 
 const TABS = ["audit", "sites", "cohort", "safety", "diversity", "history",
-  "startup", "monitoring", "finder", "external", "twins", "mcode", "validity"];
+  "startup", "monitoring", "finder", "external", "twins", "mcode", "validity",
+  "letters"];
 const IDS = new Set([
-  "apiStatus", "snapshot", "sitesJson", "aeJson", "bundleList",
+  "apiStatus", "snapshot", "snapSub", "sitesJson", "aeJson", "bundleList",
   "auditPid", "auditResult", "siteTarget", "siteCondition", "siteLive", "sitesResult",
   "cohortPid", "cohortResult", "safetyPid", "safetyResult",
   "diversityTargets", "diversityResult", "historyPid", "historyResult", "exportLinks",
@@ -14,6 +15,7 @@ const IDS = new Set([
   "monitoringResult", "finderBundle", "finderResult", "relaxIds", "externalResult",
   "twinsBundle", "twinsN", "twinsSeed", "twinsJitter", "twinsResult",
   "mcodeBundle", "mcodeResult", "validityResult",
+  "lettersText", "lettersResult", "lettersCheckResult",
   "dlStructure", "copyStructure", "globalPid", "runAllBtn", "runAllStatus",
   "sweepSeed", "sweepN", "sweepResult", "sweepForm",
   "retentionBundle", "retentionResult", "retentionForm",
@@ -25,6 +27,7 @@ const IDS = new Set([
   "sitesFile", "aeFile", "crfFile",
   "loadSites", "sitesNote", "loadAe", "aeNote", "loadAging", "agingNote",
   "loadDev", "devNote", "loadCrf", "crfNote",
+  "npiNumber", "npiFirst", "npiLast", "npiState", "npiForm", "npiResult",
   "prescreenFiles", "prescreenForm", "prescreenResult", "prescreenUploadNote",
   "prescreenGene", "dlWorklist",
   "devJson", "devFile", "devWindow", "devForm", "devResult",
@@ -34,9 +37,13 @@ for (const t of TABS) { IDS.add("tabbtn-" + t); IDS.add("tab-" + t); IDS.add(t +
 
 const listeners = new Map();
 const elements = new Map();
+const SELECT_IDS = new Set(["globalPid", "auditPid", "cohortPid", "safetyPid",
+  "historyPid", "sweepSeed", "retentionBundle", "startupSite", "startupStage",
+  "finderBundle", "twinsBundle", "twinsJitter", "mcodeBundle"]);
 function makeEl(id) {
   return {
     id, innerHTML: "", textContent: "", checked: false, hidden: true,
+    tagName: SELECT_IDS.has(id) ? "SELECT" : "DIV",
     options: [],
     value: { auditPid: "PROT-TNX-001", cohortPid: "PROT-TNX-001",
       safetyPid: "UNASSIGNED", siteTarget: "450",
@@ -78,7 +85,11 @@ globalThis.fetch = async (url) => {
   seen.push(path);
   const routes = {
     "/health": { mode: "zero-cost-local" },
-    "/api/snapshot": { protocols: 1, sites: 1, fhir_bundles: 1, ae_records: 1 },
+    "/api/snapshot": { protocols: 2, sites: 3, fhir_bundles: 5, ae_records: 4 },
+    "/api/protocols": [{ protocol_id: "PROT-TNX-001", title: "T",
+      phase: "Phase 3", indication: "I" },
+      { protocol_id: "PROT-TNX-002", title: "T2", phase: "Phase 2",
+        indication: "I2" }],
     "/api/demo-data": { sites: [], bundles: [{ name: "b.json", bundle: {} }], ae_records: [] },
     "/api/diversity-defaults": { targets: {} },
     "/api/audit-protocol/PROT-TNX-001": AUDIT,
@@ -168,6 +179,7 @@ globalThis.fetch = async (url) => {
       looks: [{ t: 0.5, alpha_spent: 0, z_efficacy: 0, p_efficacy: 0 }], basis: "b" },
     "/api/consent-check/PROT-TNX-001": { score: 90, n_sentences: 1,
       long_sentences: [], jargon_hits: [], suggestions: [], basis: "b" },
+    "/api/warning-letters": { letters: [], count: 0, note: "n" },
   };
   if (path.startsWith("/api/live-studies")) {
     return { ok: true,
@@ -197,6 +209,10 @@ for (const ep of ["/api/audit-protocol/PROT-TNX-001", "/api/score-sites",
   assert.ok(seen.includes(ep), "panel never called " + ep);
 }
 assert.ok((elements.get("snapshot")?.innerHTML || "").includes("Protocols"));
+assert.ok((elements.get("snapSub")?.textContent || "").includes("2 protocols"),
+  "snapshot subtitle not built from live counts");
+assert.ok((elements.get("globalPid")?.innerHTML || "").includes("PROT-TNX-002"),
+  "protocol dropdown was never filled from /api/protocols");
 // tab switching still wired
 for (const fn of listeners.get("tabbtn-sites")?.click || []) fn();
 assert.equal(elements.get("tab-sites").hidden, false);

@@ -28,12 +28,16 @@ from backend.agents.lock_readiness import lock_readiness, query_aging
 from backend.agents.protocol_auditor import parse_protocol
 from backend.agents.pubmed import fetch_pubmed
 from backend.agents.real_data import (
+    attach_rxnorm,
     fetch_clinvar,
+    fetch_dailymed_label,
     fetch_drug_label,
     fetch_faers,
     fetch_gene_card,
     fetch_live_studies,
+    fetch_npi,
     fetch_recalls,
+    fetch_rxnorm_id,
     fetch_variant_highlights,
 )
 from backend.agents.retention import retention_risk
@@ -127,9 +131,31 @@ def drug_safety(drug: str, event: str = "") -> dict[str, Any]:
     return {
         "drug": drug.strip(),
         "event": event.strip(),
+        "rxnorm": fetch_rxnorm_id(drug.strip()),
         "faers": fetch_faers(drug.strip(), event.strip()),
         "label": fetch_drug_label(drug.strip()),
+        "dailymed": fetch_dailymed_label(drug.strip()),
         "recalls": fetch_recalls(drug.strip()),
+    }
+
+
+@router.get("/api/npi")
+def npi_lookup(
+    number: str = "",
+    first_name: str = "",
+    last_name: str = "",
+    state: str = "",
+) -> dict[str, Any]:
+    """NPPES NPI registry: verify an investigator by number or name+state."""
+    result = fetch_npi(number, first_name, last_name, state)
+    return {
+        "query": {
+            "number": number,
+            "first_name": first_name,
+            "last_name": last_name,
+            "state": state,
+        },
+        **result,
     }
 
 
@@ -493,4 +519,5 @@ def safety_signals(body: SignalRequest) -> dict[str, Any]:
     if not body.records:
         raise HTTPException(status_code=400, detail="records is required")
     triaged = triage_records(body.records)["triaged_records"]
+    attach_rxnorm(triaged)
     return detect_signals(triaged)

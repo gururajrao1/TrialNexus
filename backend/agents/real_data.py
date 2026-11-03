@@ -25,6 +25,9 @@ from backend.config import (
 CLINVAR_ESEARCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 CLINVAR_ESUMMARY = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
 OPENFDA_EVENT = "https://api.fda.gov/drug/event.json"
+RXNORM_RXCUI = "https://rxnav.nlm.nih.gov/REST/rxcui.json"
+DAILYMED_SPLS = "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls.json"
+NPI_REGISTRY = "https://npiregistry.cms.hhs.gov/api/"
 TOOL = "TrialNexusOS"
 
 #: Biomarker genes worth a ClinVar lookup when named in criteria text.
@@ -537,6 +540,204 @@ def fetch_live_studies(
             "phase": phase,
             "studies": parse_live_studies(r.json()),
         }
+        _rw_store(key, cache, result)
+        return {**result, "source": "live"}
+    except Exception:
+        hit = cache.get(key)
+        if isinstance(hit, dict):
+            return {**hit, "source": "cache"}
+        return {**blank, "source": "offline-fallback"}
+
+
+def parse_rxnorm(payload: Any) -> str:
+    """RxCUI for a drug name from an RxNorm rxcui.json payload. Pure."""
+    try:
+        ids = payload["idGroup"]["rxnormId"]
+        first = ids[0] if ids else ""
+        return str(first or "")
+    except (KeyError, TypeError, IndexError, AttributeError):
+        return ""
+
+
+def fetch_rxnorm_id(name: str, timeout: float = 10.0) -> dict[str, Any]:
+    """RxNorm concept ID for a drug spelling. Cached, never raises."""
+    key = f"rxnorm|{name.lower()}"
+    cache, hit = _rw_cached(key)
+    if hit is not None:
+        return {**hit, "source": "cache"}
+    blank: dict[str, Any] = {"name": name, "rxcui": ""}
+    try:
+        import httpx  # core dep, imported lazily
+
+        r = httpx.get(RXNORM_RXCUI, params={"name": name}, timeout=timeout)
+        r.raise_for_status()
+        result = {"name": name, "rxcui": parse_rxnorm(r.json())}
+        _rw_store(key, cache, result)
+        return {**result, "source": "live"}
+    except Exception:
+        hit = cache.get(key)
+        if isinstance(hit, dict):
+            return {**hit, "source": "cache"}
+        return {**blank, "source": "offline-fallback"}
+
+
+def parse_dailymed(payload: Any) -> list[dict[str, str]]:
+    """SPL setids + titles + published dates from a DailyMed spls payload."""
+    try:
+        data = payload.get("data", [])
+    except AttributeError:
+        return []
+    out = []
+    if isinstance(data, list):
+        for d in data:
+            if not isinstance(d, dict):
+                continue
+            setid = str(d.get("setid", "") or "")
+            title = str(d.get("title", "") or "")
+            if setid and title:
+                out.append(
+                    {
+                        "setid": setid,
+                        "title": title,
+                        "published": str(d.get("published_date", "") or ""),
+                    }
+                )
+    return out
+
+
+def fetch_dailymed_label(drug: str, timeout: float = 10.0) -> dict[str, Any]:
+    """NLM DailyMed SPL listings for a drug name. Cached, never raises."""
+    key = f"dailymed|{drug.lower()}"
+    cache, hit = _rw_cached(key)
+    if hit is not None:
+        return {**hit, "source": "cache"}
+    blank: dict[str, Any] = {"drug": drug, "spls": []}
+    try:
+        import httpx  # core dep, imported lazily
+
+        r = httpx.get(DAILYMED_SPLS, params={"drug_name": drug}, timeout=timeout)
+        r.raise_for_status()
+        result = {"drug": drug, "spls": parse_dailymed(r.json())}
+        _rw_store(key, cache, result)
+        return {**result, "source": "live"}
+    except Exception:
+        hit = cache.get(key)
+        if isinstance(hit, dict):
+            return {**hit, "source": "cache"}
+        return {**blank, "source": "offline-fallback"}
+
+
+def attach_rxnorm(triaged: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Fill rxcui per distinct suspect_drug via cached RxNorm. Never raises.
+
+    Route-layer helper: keeps the pure triage/signal agents offline while
+    letting screens group spelling variants as one drug. Skips blanks and
+    the unknown placeholder.
+    """
+    ids: dict[str, str] = {}
+    for t in triaged:
+        name = str(t.get("suspect_drug", "") or "").strip()
+        key = name.lower()
+        if name and key != "unknown" and key not in ids:
+            try:
+                ids[key] = fetch_rxnorm_id(name).get("rxcui", "") or ""
+            except Exception:
+                ids[key] = ""
+    for t in triaged:
+        key = str(t.get("suspect_drug", "") or "").strip().lower()
+        t["rxcui"] = ids.get(key, "")
+    return triaged
+
+
+def parse_npi_results(payload: Any) -> list[dict[str, str]]:
+    """Provider cards from an NPPES NPI registry payload. Pure."""
+    try:
+        results = payload.get("results", [])
+    except AttributeError:
+        return []
+    out = []
+    if not isinstance(results, list):
+        return []
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        basic = r.get("basic", {}) if isinstance(r.get("basic"), dict) else {}
+        name = " ".join(
+            x
+            for x in (
+                str(basic.get("first_name", "") or ""),
+                str(basic.get("last_name", "") or ""),
+            )
+            if x
+        )
+        taxes = r.get("taxonomies", []) if isinstance(r.get("taxonomies"), list) else []
+        primary = next(
+            (t for t in taxes if isinstance(t, dict) and t.get("primary")), {}
+        )
+        if not primary and taxes and isinstance(taxes[0], dict):
+            primary = taxes[0]
+        addrs = r.get("addresses", []) if isinstance(r.get("addresses"), list) else []
+        loc = next(
+            (
+                a
+                for a in addrs
+                if isinstance(a, dict) and a.get("address_purpose") == "LOCATION"
+            ),
+            {},
+        )
+        if not loc and addrs and isinstance(addrs[0], dict):
+            loc = addrs[0]
+        if not str(r.get("number", "") or ""):
+            continue
+        out.append(
+            {
+                "npi": str(r.get("number", "")),
+                "name": name or str(basic.get("organization_name", "") or ""),
+                "credential": str(basic.get("credential", "") or ""),
+                "specialty": str(primary.get("desc", "") or ""),
+                "city": str(loc.get("city", "") or ""),
+                "state": str(loc.get("state", "") or ""),
+            }
+        )
+    return out
+
+
+def fetch_npi(
+    number: str = "",
+    first_name: str = "",
+    last_name: str = "",
+    state: str = "",
+    limit: int = 5,
+    timeout: float = 10.0,
+) -> dict[str, Any]:
+    """NPPES NPI registry lookup by number or name+state. Cached."""
+    params = {"version": "2.1", "limit": str(max(1, min(limit, 20)))}
+    if number.strip():
+        params["number"] = number.strip()
+    else:
+        if first_name.strip():
+            params["first_name"] = first_name.strip()
+        if last_name.strip():
+            params["last_name"] = last_name.strip()
+        if state.strip():
+            params["state"] = state.strip().upper()
+    if len(params) <= 2:
+        return {
+            "providers": [],
+            "source": "offline-fallback",
+            "note": "provide an NPI number or a name",
+        }
+    key = f"npi|{json.dumps(params, sort_keys=True)}"
+    cache, hit = _rw_cached(key)
+    if hit is not None:
+        return {**hit, "source": "cache"}
+    blank: dict[str, Any] = {"providers": []}
+    try:
+        import httpx  # core dep, imported lazily
+
+        r = httpx.get(NPI_REGISTRY, params=params, timeout=timeout)
+        r.raise_for_status()
+        result = {"providers": parse_npi_results(r.json())}
         _rw_store(key, cache, result)
         return {**result, "source": "live"}
     except Exception:

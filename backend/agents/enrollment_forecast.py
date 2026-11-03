@@ -63,6 +63,65 @@ def forecast(
     return out
 
 
+def _posterior_mean(enrolled: list[float]) -> float:
+    """Posterior-mean monthly rate under the Gamma(2, 1) prior."""
+    n = len(enrolled)
+    if n == 0:
+        return 0.0
+    return (2.0 + sum(enrolled)) / (1.0 + n)
+
+
+def backtest_accrual(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Temporal validation of the Gamma-Poisson accrual model.
+
+    Expanding-window hindcast: for each site, predict every month from
+    the months before it using the same Gamma(2, 1) posterior the
+    forecast uses, then score against what actually enrolled. No new
+    data, no fitted weights — the model's own history grades it.
+    """
+    by_site: dict[str, list[float]] = {}
+    order: dict[str, list[str]] = {}
+    for r in rows:
+        try:
+            sid = str(r["site_id"])
+            by_site.setdefault(sid, []).append(float(r.get("enrolled", 0) or 0))
+            order.setdefault(sid, []).append(str(r.get("month", "")))
+        except (KeyError, TypeError, ValueError):
+            continue
+    sites = []
+    errors: list[float] = []
+    for sid in sorted(by_site):
+        vals = by_site[sid]
+        months = order[sid]
+        preds = []
+        for k in range(1, len(vals)):
+            pred = _posterior_mean(vals[:k])
+            err = abs(pred - vals[k])
+            errors.append(err)
+            preds.append(
+                {
+                    "month": months[k],
+                    "predicted": round(pred, 2),
+                    "actual": vals[k],
+                    "abs_err": round(err, 2),
+                }
+            )
+        if preds:
+            sites.append({"site_id": sid, "predictions": preds})
+    mae = sum(errors) / len(errors) if errors else 0.0
+    return {
+        "n_sites": len(sites),
+        "n_predictions": len(errors),
+        "mae": round(mae, 2),
+        "sites": sites,
+        "basis": (
+            "Expanding-window hindcast: each month predicted from prior "
+            "months under the same Gamma(2, 1) posterior as the forecast; "
+            "MAE in patients/month."
+        ),
+    }
+
+
 def site_priors_from_metrics(rows: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
     """Empirical-Bayes inputs: per-site accrual + months from observed metrics.
 

@@ -1,12 +1,13 @@
 /* Core panel runners: audit, sites, cohort, safety. */
 import { $, esc, fail, getJSON, postJSON } from "./api.js";
-import { COHORT_BADGE, SITE_BADGE, critTable, evalTable, preJSON, table } from "./ui.js";
+import { COHORT_BADGE, SITE_BADGE, busy, critTable, evalTable, preJSON, table } from "./ui.js";
 import { demoBundles, prescreenEntries, selectedBundles, selectedExtBundles } from "./data.js";
 
 let lastStructure = null;
 
 export async function runAudit() {
   const el = $("auditResult");
+  busy(el);
   try {
     const a = await postJSON("/api/audit-protocol/" + encodeURIComponent($("auditPid").value.trim()), {});
     const f = a.protocol_fragility_index;
@@ -93,6 +94,7 @@ export async function runAudit() {
 
 export async function runSites() {
   const el = $("sitesResult");
+  busy(el);
   try {
     const sites = JSON.parse($("sitesJson").value);
     const target = parseInt($("siteTarget").value, 10) || 0;
@@ -112,20 +114,26 @@ export async function runSites() {
       "</strong> — selected <strong>" + esc(r.portfolio_summary.selected_sites_count) +
       "</strong> — projected <strong>" + esc(r.portfolio_summary.projected_timeline_to_lpi_months) +
       " months</strong> to last patient in.</p>";
-    const fc = await postJSON("/api/forecast", { sites: r.evaluated_sites.map((s) =>
+    const fcP = postJSON("/api/forecast", { sites: r.evaluated_sites.map((s) =>
       ({ id: s.site_id, accrual: s.projected_monthly_accrual_rate, months_observed: 6 })),
       target_enrollment: target, use_site_history: true });
+    const liveP = getJSON("/api/live-studies?condition=" +
+      encodeURIComponent($("siteCondition").value || "Non-Small Cell Lung Cancer"))
+      .catch(() => null);
+    const fc = await fcP;
     el.innerHTML += "<h3>Enrollment forecast (Poisson-Gamma)</h3>" +
       "<p>Months to target — P10 <strong>" + esc(fc.p10) + "</strong>, P50 <strong>" +
       esc(fc.p50) + "</strong>, P90 <strong>" + esc(fc.p90) + "</strong> (mean " +
       esc(fc.mean) + "; " + esc(fc.simulations) + " simulations, seed " + esc(fc.seed) + ")</p>" +
       (fc.site_sources ? "<p class='muted'>Rate sources: " +
         esc(Object.values(fc.site_sources).join(", ")) + " (observed = measured site history)</p>" : "") +
+      (fc.backtest && fc.backtest.n_predictions ? "<p class='muted'>History check: model hindcast MAE <strong>" +
+        esc(fc.backtest.mae) + "</strong> patients/month over " + esc(fc.backtest.n_predictions) +
+        " site-months — the forecast graded against its own past.</p>" : "") +
       "<div class='goto-row'><button data-goto='startup'>Open study startup</button>" +
       "<button data-goto='monitoring'>Open monitoring KRIs</button></div>";
-    try {
-      const live = await getJSON("/api/live-studies?condition=" +
-        encodeURIComponent($("siteCondition").value || "Non-Small Cell Lung Cancer"));
+    const live = await liveP;
+    if (live) {
       el.innerHTML += "<h3>Live recruiting studies " +
         '<span class="chip">' + esc(live.source) + "</span></h3>" +
         (live.studies.length ? "<ul class='tight'>" + live.studies.map((s) =>
@@ -133,12 +141,37 @@ export async function runSites() {
           " <span class='muted'>(" + esc(s.city || "?") + ", " +
           esc(s.country || "?") + " · " + esc(s.n_locations) + " sites)</span></li>").join("") +
           "</ul>" : "<p class='muted'>No recruiting studies returned.</p>");
-    } catch (e) { /* registry optional; the scored portfolio stands alone */ }
+    }
+  } catch (err) { fail(el, err); }
+}
+
+export async function runNpi() {
+  const el = $("npiResult");
+  busy(el);
+  try {
+    const q = "number=" + encodeURIComponent($("npiNumber").value.trim()) +
+      "&first_name=" + encodeURIComponent($("npiFirst").value.trim()) +
+      "&last_name=" + encodeURIComponent($("npiLast").value.trim()) +
+      "&state=" + encodeURIComponent($("npiState").value.trim().toUpperCase());
+    const r = await getJSON("/api/npi?" + q);
+    if (!r.providers.length) {
+      el.innerHTML = "<p class='muted'>No NPI record found" +
+        (r.note ? " — " + esc(r.note) : "") +
+        " <span class='chip'>" + esc(r.source) + "</span></p>";
+      return;
+    }
+    el.innerHTML = "<h3>Investigator verification " +
+      '<span class="chip">' + esc(r.source) + "</span></h3>" +
+      table(r.providers.map((p) => ({
+        npi: p.npi, name: p.name + (p.credential ? ", " + p.credential : ""),
+        spec: p.specialty || "—", loc: (p.city || "?") + ", " + (p.state || "?"),
+      })), [["npi", "NPI"], ["name", "Name"], ["spec", "Specialty"], ["loc", "Location"]]);
   } catch (err) { fail(el, err); }
 }
 
 export async function runCohort() {
   const el = $("cohortResult");
+  busy(el);
   try {
     const r = await postJSON("/api/match-cohort",
       { protocol_id: $("cohortPid").value.trim(), bundles: selectedBundles() });
@@ -162,6 +195,7 @@ export async function runCohort() {
 
 export async function runSafety() {
   const el = $("safetyResult");
+  busy(el);
   try {
     const records = JSON.parse($("aeJson").value);
     const r = await postJSON("/api/triage-safety",
@@ -175,7 +209,8 @@ export async function runSafety() {
       (t.is_sae ? '<div class="alert-sae"><span class="stamp stamp-sae">SAE</span> Serious adverse event — expedited clock: ' +
         (t.regulatory_alert_required ? esc(t.reporting_deadline_hours) + "h to report" : "standard reporting") + "</div>" : "") +
       "<p>" + esc(t.reported_term) + " — " + esc(t.meddra_classification.soc) + " / " +
-      esc(t.meddra_classification.preferred_term) + " — " + esc(t.severity_grade) + "</p>" +
+      esc(t.meddra_classification.preferred_term) + " — " + esc(t.severity_grade) +
+      (t.rxcui ? ' <span class="chip">RxCUI ' + esc(t.rxcui) + "</span>" : "") + "</p>" +
       "<p class='muted'>Onset: " + esc(((t.enrichment || {}).temporality || {}).onset || "unknown") +
       " — Relatedness: " + esc(((t.enrichment || {}).attribution || {}).relatedness || "unknown") +
       " — Certainty: " + esc(((t.enrichment || {}).certainty || {}).level || "low") + "</p>" +
@@ -184,7 +219,10 @@ export async function runSafety() {
       esc(t.site_query.auto_close_condition) + "</p></details>" +
       "</div>").join("");
     const pid = $("safetyPid").value.trim() || "UNASSIGNED";
-    const lk = await getJSON("/api/lock-readiness/" + encodeURIComponent(pid));
+    const [lk, ag] = await Promise.all([
+      getJSON("/api/lock-readiness/" + encodeURIComponent(pid)),
+      getJSON("/api/query-aging/" + encodeURIComponent(pid)),
+    ]);
     const rag = (s) => s === "green" ? "b-elig" : (s === "amber" ? "b-review" : "b-inelig");
     el.innerHTML += "<h3>Database-lock readiness " +
       '<span class="badge ' + rag(lk.overall) + '">' + esc(lk.overall) + "</span></h3>" +
@@ -194,7 +232,6 @@ export async function runSafety() {
         "<li>" + esc(c.item) + ": " + '<span class="badge ' + rag(c.status) + '">' +
         esc(c.status) + "</span> <span class='muted'>" + esc(c.detail) + "</span></li>").join("") + "</ul>" +
       "<p class='muted'>" + esc(lk.basis) + "</p>";
-    const ag = await getJSON("/api/query-aging/" + encodeURIComponent(pid));
     el.innerHTML += agingHTML(ag) +
       "<div class='goto-row'><button data-goto='history'>Review safety history</button>" +
       "<button data-goto='cohort'>Recheck cohort</button></div>";
@@ -240,6 +277,7 @@ function agingHTML(ag) {
 
 export async function runAgingUpload() {
   const el = $("agingResult");
+  busy(el);
   try {
     const txt = $("agingJson").value.trim();
     if (!txt) {
@@ -254,6 +292,7 @@ export async function runAgingUpload() {
 
 export async function runCrfTrace() {
   const el = $("crfResult");
+  busy(el);
   try {
     const fields = $("crfFields").value.split("\n").map((s) => s.trim()).filter(Boolean);
     const r = await postJSON("/api/crf-trace", {
@@ -281,6 +320,7 @@ let lastWorklist = [];
 
 export async function runPrescreen() {
   const el = $("prescreenResult");
+  busy(el);
   try {
     const entries = prescreenEntries();
     if (!entries.length) {
@@ -373,6 +413,7 @@ async function loadGene(gene) {
 
 export async function runSweep() {
   const el = $("sweepResult");
+  busy(el);
   try {
     const sel = $("sweepSeed");
     if (!sel.options.length) {
@@ -400,6 +441,7 @@ export async function runSweep() {
 
 export async function runRetention() {
   const el = $("retentionResult");
+  busy(el);
   try {
     const sel = $("retentionBundle");
     if (!sel.options.length) {
@@ -430,6 +472,7 @@ export async function runRetention() {
 
 export async function runPdf() {
   const el = $("auditResult");
+  busy(el);
   try {
     const input = $("pdfFile");
     const file = input.files && input.files[0];
@@ -453,6 +496,7 @@ export async function runPdf() {
 
 export async function runPubmed() {
   const el = $("pubmedResult");
+  busy(el);
   try {
     el.innerHTML = "<p class='muted'>Searching…</p>";
     const r = await getJSON("/api/pubmed?term=" +
@@ -470,6 +514,7 @@ export async function runPubmed() {
 
 export async function runSignals() {
   const el = $("signalsResult");
+  busy(el);
   try {
     const records = JSON.parse($("aeJson").value);
     const r = await postJSON("/api/safety-signals", { records });
@@ -477,10 +522,12 @@ export async function runSignals() {
       " watch <span class='muted'>(" + esc(r.n_records) + " records, " +
       esc(r.n_drugs) + " drugs)</span></h3>" +
       (r.pairs.length ? table(r.pairs.map((p) => ({
-        pair: p.drug + " × " + p.event, n: p.n, prr: p.prr, chi2: p.chi2,
+        pair: (p.drug_label || p.drug) + " × " + p.event +
+          (p.drug !== (p.drug_label || p.drug) ? " [" + p.drug + "]" : ""),
+        n: p.n, prr: p.prr, ic: p.ic, q: (p.q_value === null ? "n/a" : p.q_value),
         ror: p.ror + " [" + p.ror_ci.join(", ") + "]", status: p.status,
-      })), [["pair", "Drug × Event"], ["n", "n"], ["prr", "PRR"], ["chi2", "χ²"],
-        ["ror", "ROR [95% CI]"], ["status", "Status"]])
+      })), [["pair", "Drug × Event"], ["n", "n"], ["prr", "PRR"], ["ic", "IC"],
+        ["q", "q (FDR)"], ["ror", "ROR [95% CI]"], ["status", "Status"]])
         : "<p class='muted'>No drug-event pairs.</p>") +
       '<div id="faersLine"></div>' +
       "<p class='muted'>" + esc(r.basis) + "</p>";
@@ -488,13 +535,19 @@ export async function runSignals() {
       p.drug && p.drug !== "unknown" && (p.status === "signal" || p.status === "watch"));
     if (top) {
       try {
-        const d = await getJSON("/api/drug-safety?drug=" + encodeURIComponent(top.drug) +
+        const name = top.drug_label || top.drug;
+        const d = await getJSON("/api/drug-safety?drug=" + encodeURIComponent(name) +
           "&event=" + encodeURIComponent(top.event));
         const fl = document.getElementById("faersLine");
         if (fl) fl.innerHTML = "<p>Regulatory reality check: <strong>" +
-          esc(top.drug) + " × " + esc(top.event) + "</strong> — " +
+          esc(name) + " × " + esc(top.event) + "</strong> — " +
           esc(d.faers.reports) + " FAERS reports <span class='chip'>" +
           esc(d.faers.source) + "</span>" +
+          (d.rxnorm && d.rxnorm.rxcui ? " · RxCUI " + esc(d.rxnorm.rxcui) +
+            " <span class='chip'>" + esc(d.rxnorm.source) + "</span>" : "") +
+          (d.dailymed && d.dailymed.spls && d.dailymed.spls.length ?
+            " · " + esc(d.dailymed.spls.length) + " DailyMed SPL(s) <span class='chip'>" +
+            esc(d.dailymed.source) + "</span>" : "") +
           (d.label.has_boxed ? ' <span class="stamp stamp-watch">boxed warning</span>' : "") +
           (d.recalls.count ? " · " + esc(d.recalls.count) + " recall(s) on file" +
             (d.recalls.latest.classification ? " (latest: " +
@@ -558,6 +611,7 @@ export async function runConsent(pid) {
 
 export async function runOutcomes() {
   const el = $("outcomesResult");
+  busy(el);
   try {
     el.innerHTML = "<p class='muted'>Querying registry…</p>";
     const r = await getJSON("/api/outcome-benchmark?condition=" +

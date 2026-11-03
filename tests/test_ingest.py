@@ -18,20 +18,26 @@ from backend.agents.pubmed import (
 )
 from backend.agents.real_data import (
     fetch_clinvar,
+    fetch_dailymed_label,
     fetch_drug_label,
     fetch_faers,
     fetch_gene_card,
     fetch_live_studies,
+    fetch_npi,
     fetch_recalls,
+    fetch_rxnorm_id,
     genes_in_text,
     parse_civic_gene,
     parse_clinvar_esummary,
+    parse_dailymed,
     parse_enforcement,
     parse_faers_total,
     parse_label_doc,
     parse_live_studies,
     parse_mygene_hit,
     parse_myvariant_hits,
+    parse_npi_results,
+    parse_rxnorm,
 )
 from backend.auth import authorized
 from backend.database import (
@@ -188,6 +194,77 @@ class RealDataTests(unittest.TestCase):
         f = fetch_faers("osimertinib", "Pneumonitis")
         self.assertIn(f["source"], ("live", "cache", "offline-fallback"))
         self.assertIsInstance(f["reports"], int)
+
+
+class NlmWaveTests(unittest.TestCase):
+    def test_rxnorm_parser_offline(self):
+        self.assertEqual(parse_rxnorm({"idGroup": {"rxnormId": ["5640"]}}), "5640")
+        self.assertEqual(parse_rxnorm({}), "")
+        self.assertEqual(parse_rxnorm("garbage"), "")
+
+    def test_dailymed_parser_offline(self):
+        spls = parse_dailymed(
+            {
+                "data": [
+                    {"setid": "abc", "title": "IBUPROFEN tablet"},
+                    {"setid": "", "title": ""},
+                ]
+            }
+        )
+        self.assertEqual(len(spls), 1)
+        self.assertEqual(spls[0]["setid"], "abc")
+        self.assertEqual(parse_dailymed({}), [])
+        self.assertEqual(parse_dailymed("garbage"), [])
+
+    def test_npi_parser_offline(self):
+        provs = parse_npi_results(
+            {
+                "result_count": 1,
+                "results": [
+                    {
+                        "number": "1234567890",
+                        "basic": {
+                            "first_name": "Jane",
+                            "last_name": "Doe",
+                            "credential": "MD",
+                            "enumeration_date": "2010-01-01",
+                        },
+                        "taxonomies": [
+                            {
+                                "desc": "Internal Medicine",
+                                "primary": True,
+                                "state": "CA",
+                            }
+                        ],
+                        "addresses": [
+                            {
+                                "city": "Fresno",
+                                "state": "CA",
+                                "address_purpose": "LOCATION",
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+        self.assertEqual(len(provs), 1)
+        self.assertEqual(provs[0]["npi"], "1234567890")
+        self.assertEqual(provs[0]["name"], "Jane Doe")
+        self.assertEqual(provs[0]["specialty"], "Internal Medicine")
+        self.assertEqual(provs[0]["city"], "Fresno")
+        self.assertEqual(parse_npi_results({}), [])
+        self.assertEqual(parse_npi_results("garbage"), [])
+
+    def test_nlm_fetchers_never_crash(self):
+        r = fetch_rxnorm_id("ibuprofen")
+        self.assertIn(r["source"], ("live", "cache", "offline-fallback"))
+        self.assertIsInstance(r["rxcui"], str)
+        d = fetch_dailymed_label("ibuprofen")
+        self.assertIn(d["source"], ("live", "cache", "offline-fallback"))
+        self.assertIsInstance(d["spls"], list)
+        n = fetch_npi(first_name="John", last_name="Smith", state="CA")
+        self.assertIn(n["source"], ("live", "cache", "offline-fallback"))
+        self.assertIsInstance(n["providers"], list)
 
 
 class RealWorldWave2Tests(unittest.TestCase):
