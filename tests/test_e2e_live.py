@@ -292,7 +292,7 @@ def main():
     o = json.loads(get("/api/trial-outlook/PROT-TNX-001")[1])
     check(
         "outlook returns success probability + breakdown",
-        0.01 <= o["success_probability"] <= 0.95 and len(o["drivers"]) == 4,
+        0.01 <= o["success_probability"] <= 0.95 and len(o["drivers"]) == 5,
         o["success_probability"],
     )
     fc = post(

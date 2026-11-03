@@ -35,6 +35,8 @@ REALWORLD_CACHE_MAX_ENTRIES = 300
 HISTORY_CAP = 2000
 INBOX_DIR = DATA_DIR / "inbox"
 INBOX_BUNDLES_DIR = INBOX_DIR / "bundles"
+FITTED_DIR = DATA_DIR / "fitted"
+FITTED_OUTLOOK = FITTED_DIR / "outlook_lr.json"
 N2C2_DATA_DIR = DATA_DIR / "n2c2"
 N2C2_FIXTURE = ROOT / "tests" / "fixtures" / "n2c2_mini.json"
 

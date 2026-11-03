@@ -14,3 +14,6 @@ data/inbox/*.txt
 data/inbox/bundles/*
 !data/inbox/README.md
 !data/inbox/bundles/.gitkeep
+# Fitted coefficients are local-only (trained on gated data): never commit.
+data/fitted/*.json
+!data/fitted/.gitkeep

@@ -20,6 +20,7 @@ from agents.risk_models import outlook  # noqa: E402
 from agents.synonyms import normalize  # noqa: E402
 from agents.twin_generator import (  # noqa: E402
     make_twins,
+    prespec_block,
     twin_distribution,
 )
 
@@ -143,7 +144,8 @@ class Tier12Tests(unittest.TestCase):
         self.assertGreaterEqual(o["success_probability"], 0.01)
         self.assertLessEqual(o["success_probability"], 0.95)
         self.assertAlmostEqual(sum(o["failure_breakdown"].values()), 1.0, places=2)
-        self.assertEqual(len(o["drivers"]), 4)
+        # 5 drivers: the 5th labels fitted-vs-bootloader coefficient source.
+        self.assertEqual(len(o["drivers"]), 5)
 
     def test_twins_contract(self):
         t = twin_distribution(
@@ -189,6 +191,17 @@ class Tier12Tests(unittest.TestCase):
         t = twin_distribution(self.crit, b, n=50, seed=7, jitter=0.0)
         self.assertEqual(t["counts"].get(base), 50)
         self.assertTrue(all(f["flips"] == 0 for f in t["flips"]))
+
+    def test_twins_prespec(self):
+        p = prespec_block(5000, 7, 0.9)
+        self.assertEqual(p["n"], 2000)
+        self.assertEqual(p["jitter"], 0.5)
+        self.assertEqual(p["not_for"], "efficacy or safety")
+        t = twin_distribution(
+            self.crit, load_bundle("patient_001_breast_cancer"), n=50, seed=7
+        )
+        self.assertEqual(t["prespec"]["seed"], 7)
+        self.assertEqual(t["prespec"]["n"], 50)
 
     def test_twins_deterministic(self):
         kw = {

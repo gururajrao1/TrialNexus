@@ -41,6 +41,25 @@ def _wilson_ci(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
     return (max(0.0, center - half), min(1.0, center + half))
 
 
+def prespec_block(n: int, seed: int, jitter: float) -> dict[str, Any]:
+    """Auditable prespecification block for a twin sensitivity run.
+
+    Paste into the protocol appendix so the run is reproducible and its
+    limits are declared up front: independent uniform noise on one
+    patient's own observations, eligibility verdict as the only endpoint,
+    never efficacy or safety.
+    """
+    jitter = _clamp_jitter(jitter)
+    return {
+        "n": max(0, min(n, MAX_TWINS)),
+        "seed": seed,
+        "jitter": jitter,
+        "model": "independent uniform ±jitter on Observation valueQuantity",
+        "endpoint": "eligibility verdict distribution (Wilson CI + flips)",
+        "not_for": "efficacy or safety",
+    }
+
+
 def _criterion_outcomes(
     ev: dict[str, Any],
 ) -> list[tuple[str | None, str, bool]]:
@@ -122,6 +141,7 @@ def twin_distribution(
         "n": total,
         "seed": seed,
         "jitter": jitter,
+        "prespec": prespec_block(n, seed, jitter),
         "counts": counts,
         "eligible_pct": round(100.0 * p, 1),
         "eligible_ci95": [round(100.0 * lo, 1), round(100.0 * hi, 1)],

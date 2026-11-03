@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 import json
+import os
 import re
 import uuid
 from typing import Any
@@ -14,6 +16,7 @@ from pydantic import BaseModel
 
 from backend.agents.cohort_matcher import evaluate_cohort
 from backend.agents.inbox import list_inbox, read_inbox_text, scan_bundles
+from backend.agents.llm_rationale import annotate_results
 from backend.agents.pdf_ingest import extract_pdf_text
 from backend.agents.prescreen_queue import rank_prescreen
 from backend.agents.protocol_auditor import parse_protocol
@@ -263,6 +266,35 @@ class PrescreenRequest(BaseModel):
     protocol_id: str
     entries: list[PrescreenEntry]
     drivers: list[dict[str, Any]] = []
+
+
+class ExplainRequest(BaseModel):
+    evaluations: dict[str, Any]
+    max_criteria: int = 6
+
+
+@router.post("/api/match/explain")
+def match_explain_endpoint(body: ExplainRequest) -> dict[str, Any]:
+    """Advisory LLM rationales over deterministic evaluations.
+
+    Disabled unless TRIALNEXUS_LLM_ENABLED=1. Rules-v1 verdicts are never
+    modified; the layer only appends verified annotations and fails
+    closed to null + warning codes.
+    """
+    if os.getenv("TRIALNEXUS_LLM_ENABLED", "0") != "1":
+        return annotate_results(body.evaluations, None, body.max_criteria)
+
+    from backend.router import ZeroCostRouter
+
+    router = ZeroCostRouter()
+
+    def call_model(system: str, user: str) -> dict[str, Any]:
+        result = asyncio.run(router.execute_query(system, user))
+        if result.get("engine") == "deterministic-local":
+            raise RuntimeError("no local LLM reachable")
+        return result
+
+    return annotate_results(body.evaluations, call_model, body.max_criteria)
 
 
 @router.post("/api/prescreen-queue")
