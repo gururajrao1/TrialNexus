@@ -89,7 +89,9 @@ relaxation sweep (which threshold to relax, how many patients each step
 buys), retention-risk score with a remote-visit what-if, and trial-level
 attrition. Every criterion row carries provenance (match type + confidence),
 resolved through a synonym table ("MI" = "myocardial infarction") and
-DocumentReference notes.
+DocumentReference notes. Same tab: prescreen queue ranks the coordinator
+worklist by missing-data value (which lab unblocks the most patients
+first).
 
 ### 4. Safety triage — "what needs a clock, and what needs a query?"
 
@@ -99,7 +101,9 @@ other records routine with correct SOC/grade mapping and no false alerts.
 Further down: database-lock readiness, literature search (Safety → Search,
 linked PMID cards), and an ROR/PRR signal screen that flags the liver
 cluster as watch. Each AE row carries temporality, attribution, and
-certainty enrichment.
+certainty enrichment. Same tab: CRF trace maps eCRF fields to criteria
+coverage, and the query-aging upload re-ages any query file by owner with
+SLA-breach rates.
 
 ### 5. Diversity plan — "can we defend our enrollment mix?"
 
@@ -128,7 +132,10 @@ pipeline update against contract/IRB/activation benchmarks.
 Click **06 Monitoring** (auto-runs from monthly site metrics). Expect:
 SITE-002 red with alert KRIs and a visit recommendation, SITE-001 green
 with no action, SITE-003 amber watch — plus central statistical monitoring
-flags and zero-enroll risk bands that separate the sites (low / high / low).
+flags and zero-enroll risk bands that separate the sites (low / high / low),
+each with a Cox-Stuart trend read on the run-rate. Same tab: deviation
+watch flags out-of-window visits, missing assessments, and consent
+violations, with a binomial rate signal calling out outlier sites.
 
 ### 9. Find trials — "which trial fits this patient?"
 
@@ -140,7 +147,7 @@ matching, so both views can never disagree.
 
 ### 10. External control — "what do we compare a single arm against?"
 
-Click **10 External control** (default relaxation `INC-04, EXC-01`).
+Click **09 External control** (default relaxation `INC-04, EXC-01`).
 Expect: comparator pool n=2 (001 strict + 002 via relaxation), near-miss
 set, pool-mix comparability tables, and a methods note naming the relaxed
 criteria and caveats. Relaxations are explicit, never silent.
@@ -148,7 +155,11 @@ criteria and caveats. Relaxations are explicit, never silent.
 ### 11. Synthetic twins — "how sensitive is eligibility to measurement noise?"
 
 Click **10 Synthetic twins**, generate ~100 twins of patient-001. Expect a
-mostly-eligible mix with the ineligible share coming from jittered labs.
+mostly-eligible mix with the ineligible share coming from jittered labs,
+plus a Wilson 95% interval, Monte-Carlo SE, and a flip-driver table naming
+the criterion that moves the verdict most. Change the seed and the number
+moves; widen jitter from ±5% to ±25% and eligibility collapses (~100% to
+~59%) — that is the sensitivity story. Up to 2,000 twins per run.
 Design exploration only: twins probe measurement sensitivity, never efficacy
 or safety, and nothing is stored.
 
@@ -156,7 +167,9 @@ or safety, and nothing is stored.
 
 Click **11 mCODE summary**, pick patient-004. Expect: breast cancer, HER2
 biomarker, ECOG 0, and a completeness percentage with gaps listed — the
-standard oncology profile in one block.
+standard oncology profile in one block. Contrast patient-005 (diabetes):
+correctly 0% with no cancer fields and no EGFR hit — the kidney lab eGFR
+no longer counts as the gene.
 
 ### 13. Model validity — "is the matcher itself any good?"
 
