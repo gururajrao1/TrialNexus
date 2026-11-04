@@ -22,6 +22,13 @@ from backend.config import REALWORLD_CACHE, REALWORLD_CACHE_MAX_ENTRIES
 
 CTGV_STUDIES = "https://clinicaltrials.gov/api/v2/studies"
 CACHE_PREFIX = "match|"
+#: Slim payload: only the modules match_description parses. Verified against
+#: the live API (327 bytes vs ~75KB per study unfiltered).
+CTGV_FIELDS = (
+    "NCTId,BriefTitle,OverallStatus,Condition,Phase,BriefSummary,"
+    "EligibilityCriteria,Sex,MinimumAge,MaximumAge,"
+    "LocationCity,LocationState,LocationCountry"
+)
 MAX_EXCERPT = 280
 MAX_TRIALS = 10
 
@@ -94,10 +101,50 @@ def _distill(description: str, limit: int = 8) -> list[str]:
     return out
 
 
+#: Canonical forms for clinical synonyms/subtypes (TrialGPT's E2 error
+#: class: missing that "mutant" is "mutation"). Applied at token level so
+#: search terms, overlap, and scoring share one vocabulary. Deliberately
+#: small and auditable — not a terminology server.
+_CANON = {
+    "mutant": "mutation",
+    "mutated": "mutation",
+    "mutations": "mutation",
+    "progressed": "progression",
+    "progressive": "progression",
+    "refractory": "resistant",
+    "chemo": "chemotherapy",
+    "metastases": "metastasis",
+    "metastatic": "metastasis",
+    "tumors": "tumor",
+    "tumour": "tumor",
+    "tumours": "tumor",
+    "evaluable": "measurable",
+    "previously": "prior",
+    "previous": "prior",
+    "sufficient": "adequate",
+}
+
+#: Criteria that can be *not applicable* (TrialGPT's fourth label) under a
+#: narrow, auditable rule: pregnancy/lactation/contraception clauses when
+#: the description identifies the patient as male.
+_NA_PATTERNS = re.compile(r"pregnan|lactat|breastfe|nursing mother|contracept")
+_MALE_PATTERN = re.compile(r"\bman\b|\bmale\b|\bmen\b")
+
+
+def _is_not_applicable(bullet: str, description: str) -> bool:
+    low_desc = (description or "").lower()
+    if "woman" in low_desc or "female" in low_desc:
+        return False
+    return bool(_NA_PATTERNS.search(bullet.lower())) and bool(
+        _MALE_PATTERN.search(low_desc)
+    )
+
+
 def _tokens(text: str) -> list[str]:
-    return [
+    raw = [
         w for w in re.findall(r"[a-z0-9]{3,}", (text or "").lower()) if w not in _STOP
     ]
+    return [_CANON.get(w, w) for w in raw]
 
 
 def _tf(tokens: list[str]) -> dict[str, float]:
@@ -190,6 +237,7 @@ def search_ctgov(
                 "filter.overallStatus": "RECRUITING",
                 "pageSize": max(1, min(page_size, 25)),
                 "countTotal": "true",
+                "fields": CTGV_FIELDS,
             }
             if condition.strip():
                 params["query.cond"] = condition.strip()[:200]
@@ -298,6 +346,14 @@ def _content_terms(bullet: str) -> set[str]:
     return set(_tokens(bullet))
 
 
+def _template_na_note(bullet: str) -> tuple[str, str]:
+    return (
+        "not applicable",
+        f"This requirement ('{_short(bullet)}') does not apply to the "
+        "described patient, so it is set aside from the match math.",
+    )
+
+
 def _template_note(
     bullet: str, overlap: set[str], has_number: bool, exclusion: bool
 ) -> tuple[str, str]:
@@ -364,10 +420,21 @@ def explain_criterion(
 
     Verdicts: "likely met" (your words cover it), "possible conflict"
     (exclusion text overlaps your description), "check with the team"
-    (numbers, thresholds, or nothing to go on). Always quotes the criterion.
-    A model may rephrase the note, but the template verdict stands and every
-    draft is verified (verdict echo + verbatim quotes) or discarded.
+    (numbers, thresholds, or nothing to go on), "not applicable" (narrow
+    rule, e.g. pregnancy clauses for a male patient). Always quotes the
+    criterion. A model may rephrase the note, but the template verdict
+    stands and every draft is verified (verdict echo + verbatim quotes)
+    or discarded.
     """
+    if _is_not_applicable(bullet, description):
+        verdict, plain = _template_na_note(bullet)
+        return {
+            "verdict": verdict,
+            "plain": plain,
+            "quote": bullet[:MAX_EXCERPT],
+            "draft": False,
+            "matched_terms": [],
+        }
     desc_low = (description or "").lower()
     desc_terms = set(_tokens(description))
     terms = _content_terms(bullet)
@@ -386,6 +453,7 @@ def explain_criterion(
         "verdict": verdict,
         "plain": plain,
         "quote": bullet[:MAX_EXCERPT],
+        "matched_terms": sorted(eff_overlap)[:5],
         "draft": False,
     }
     if call_model is None or budget is None or budget[0] <= 0:
@@ -550,9 +618,17 @@ def match_description(
                 "kind": "exclusion",
             }
         )
-    conflicts = sum(1 for n in notes if n["verdict"] == "possible conflict")
-    mets = sum(1 for n in notes if n["verdict"] == "likely met")
-    score = round(100 * (0.65 * relevance + 0.35 * (mets / max(1, len(notes)))), 1)
+    # TrialGPT-style aggregation: met-inclusion rate ranks up, met-exclusion
+    # rate ranks down (a met exclusion is the characteristic exclusion
+    # signal), term relevance carries the rest. N/A notes sit out the math.
+    judged = [n for n in notes if n["verdict"] != "not applicable"]
+    incl = [n for n in judged if n.get("kind") == "inclusion"]
+    excl = [n for n in judged if n.get("kind") == "exclusion"]
+    conflicts = sum(1 for n in excl if n["verdict"] == "possible conflict")
+    mets = sum(1 for n in incl if n["verdict"] == "likely met")
+    incl_rate = mets / max(1, len(incl)) if incl else 0.5
+    excl_clear = 1.0 - conflicts / max(1, len(excl)) if excl else 1.0
+    score = round(100 * (0.5 * relevance + 0.3 * incl_rate + 0.2 * excl_clear), 1)
     if conflicts:
         verdict = "needs clinician review"
     elif mets:
@@ -563,8 +639,9 @@ def match_description(
         f"{study['nct_id'] or 'This trial'} is recruiting for "
         f"{', '.join(study['conditions'][:2]) or 'your condition area'}"
         + (f" ({study['phase']})" if study["phase"] else "")
-        + f". Of {len(notes)} checked requirements, {mets} line up with your "
-        f"description{', ' + str(conflicts) + ' look like conflicts' if conflicts else ''}."
+        + f". Of {len(judged)} applicable requirements, {mets} inclusion "
+        f"line up with your description; "
+        f"{conflicts} exclusion look like conflicts."
         " Only the study team can confirm eligibility — bring this list."
     )
     return {
@@ -573,7 +650,9 @@ def match_description(
         "verdict": verdict,
         "summary": summary,
         "notes": notes[:top_notes],
-        "n_checked": len(notes),
+        "n_checked": len(judged),
+        "inclusion_met_rate": round(incl_rate, 3),
+        "exclusion_clear_rate": round(excl_clear, 3),
     }
 
 

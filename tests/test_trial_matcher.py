@@ -10,6 +10,7 @@ from backend.agents import trial_matcher
 from backend.agents.trial_matcher import (
     _distill,
     explain_criterion,
+    match_description,
     match_trials,
     parse_study,
     search_ctgov,
@@ -368,7 +369,7 @@ class MatchTests(unittest.TestCase):
             _distill(DESC),
             [
                 "egfr",
-                "mutant",
+                "mutation",
                 "lung",
                 "adenocarcinoma",
                 "prior",
@@ -401,6 +402,79 @@ class MatchTests(unittest.TestCase):
         res = match_trials(DESC, location="Boston", max_trials=1, http_get=http_get)
         self.assertTrue(res["widened"])
         self.assertEqual(res["trials"][0]["nct_id"], "NCT00000001")
+
+
+class TrialGptTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.patch = mock.patch.object(
+            trial_matcher, "REALWORLD_CACHE", Path(self.tmp.name) / "cache.json"
+        )
+        self.patch.start()
+
+    def tearDown(self):
+        self.patch.stop()
+        self.tmp.cleanup()
+
+    def test_synonym_overlap_likely_met(self):
+        note = explain_criterion(
+            "Patients with EGFR mutation positive tumors", "EGFR-mutant lung cancer"
+        )
+        self.assertEqual(note["verdict"], "likely met")
+        self.assertIn("mutation", note["matched_terms"])
+
+    def test_pregnancy_na_for_male(self):
+        note = explain_criterion(
+            "Pregnant or breastfeeding women are excluded",
+            "58-year-old man with diabetes",
+            exclusion=True,
+        )
+        self.assertEqual(note["verdict"], "not applicable")
+
+    def test_pregnancy_not_na_for_female(self):
+        note = explain_criterion(
+            "Pregnant or breastfeeding women are excluded",
+            "58-year-old woman with diabetes",
+            exclusion=True,
+        )
+        self.assertNotEqual(note["verdict"], "not applicable")
+
+    def test_na_sits_out_scoring(self):
+        raw = _study(
+            eligibility="Inclusion Criteria:\nAdults with lung cancer\n\n"
+            "Exclusion Criteria:\nPregnant or breastfeeding"
+        )
+        res = match_description(parse_study(raw), "58-year-old man with diabetes")
+        self.assertEqual(len(res["notes"]), 2)
+        self.assertEqual(res["n_checked"], 1)
+        self.assertEqual(
+            [n["verdict"] for n in res["notes"]].count("not applicable"), 1
+        )
+
+    def test_conflict_penalizes_score(self):
+        clean = _study(eligibility="Inclusion Criteria:\nAdults with lung cancer")
+        clash = _study(
+            nct="NCT00000009",
+            eligibility="Inclusion Criteria:\nAdults with lung cancer\n\n"
+            "Exclusion Criteria:\nPrior osimertinib treatment",
+        )
+        a = match_description(parse_study(clean), DESC)
+        b = match_description(parse_study(clash), DESC)
+        self.assertLess(b["score"], a["score"])
+        self.assertLess(b["exclusion_clear_rate"], 1.0)
+        self.assertEqual(b["verdict"], "needs clinician review")
+
+    def test_fields_param_sent(self):
+        seen = []
+
+        def http_get(params, timeout):
+            seen.append(params)
+            return {"studies": [_study()], "totalCount": 1}
+
+        match_trials(DESC, max_trials=1, http_get=http_get)
+        self.assertTrue(seen)
+        self.assertIn("NCTId", seen[0].get("fields", ""))
+        self.assertIn("EligibilityCriteria", seen[0].get("fields", ""))
 
 
 if __name__ == "__main__":

@@ -187,6 +187,7 @@ Click **13 Warning letters** in the sidebar. Expect: your five saved letters ind
 
 Click **15 Trial matcher** (Live search group). Type a plain-English description ("66-year-old woman, EGFR-mutant lung adenocarcinoma, prior osimertinib…") plus an optional location. The app distills searchable terms (raw prose is rejected by the registry), backs off from specific to broad when a rung returns nothing, ranks recruiting trials from clinicaltrials.gov, and explains each top hit against its own criteria — "likely met / possible conflict / check with the team", always with quotes, never "eligible".
 Optional model layer, off by default: tick "Draft with my model endpoint" and the app also drafts note phrasing and a re-ranked order through your configured endpoint (TRIALNEXUS_MODEL_BASE_URL + TRIALNEXUS_LLM_ENABLED=1). Every draft is verified — verdict echo, verbatim quotes, permutation check — or discarded with a named warning; templates always decide.
+Design debt to NIH TrialGPT (PMC11574183): four-label criterion verdicts (met / conflict / unknown / not-applicable), a synonym canonicalizer for its E2 error class (mutant = mutation…), exclusion-weighted trial scoring, and quoted explanations per criterion. Retrieval stays lexical (CT.gov `fields`-slimmed payloads, ~0.3KB vs ~75KB per study) instead of TrialGPT's LLM retrieval — the deterministic half of its retrieve → match → rank pipeline.
 
 ## 5-minute demo script (for explaining it to someone else)
 
