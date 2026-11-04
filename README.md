@@ -3,46 +3,71 @@
 TrialNexus is a multi-agent clinical trials platform that runs **entirely on
 your machine**: protocol auditing, site feasibility, cohort matching, and
 safety triage, plus a full product layer (diversity planning, startup
-tracking, monitoring, trial finding, synthetic twins, and more).
+tracking, monitoring, trial finding, live trial matching, warning-letter
+cross-checks, synthetic twins, and more).
 
-There are no LLM calls, no API keys, no model downloads, and no paid
-services. Every "agent" is a **deterministic function** with cited,
-reproducible output — the same input always produces the same result.
+The core is **deterministic**: every agent is a pure function with cited,
+reproducible output — the same input always produces the same result. An
+optional model layer (off by default, bring-your-own endpoint) drafts
+plain-English explanations that are verified or discarded; templates always
+decide. No data leaves the machine unless you explicitly tick the box.
 
 ## The problem it solves
 
 Bringing a drug from Phase I to approval averages 10–12 years and over
-$2.6B, much of it operational friction:
+$2.6B, and most of the waste is operational — predictable, measurable, and
+still handled by gut feel and spreadsheets in small teams:
 
-| Pain | Number | TrialNexus answer |
+| Pain | Number (Tufts CSDD / industry) | TrialNexus answer |
 |---|---|---|
-| Protocol amendments | 57% of protocols amended; ~$535K + 3 months per Phase III amendment | Protocol Auditor: machine-readable I/E rules, fragility index, $ exposure |
-| Sites miss enrollment | ~80% of trials miss timelines; ~50% of sites under-/zero-enroll | Site Scout: objective 35/25/20/20 scoring + live CT.gov benchmarking |
-| Screen failures | 30–50% (70%+ in precision oncology) | Cohort Matcher: FHIR-based prescreening with cited evidence |
-| Safety/query lag | Manual triage under 7/15-day clocks | Safety Triage: MedDRA coding, SAE detection, drafted site queries |
+| Protocol amendments | 76% of protocols amended (up from 57%); median $141K Phase II / $535K Phase III each; ~260 days to push through; +9.5 months when post-enrollment | Protocol audit: fragility index, $ exposure, clash checks — amend before you spend |
+| Sites miss enrollment | ~80% of trials delayed by recruitment; 37% of sites under-enroll, 11% enroll zero; delay days cost $600K–$8M | Site feasibility scoring + startup tracking + live CT.gov competition counts |
+| Eligible patients never found | Screen failures 30–50% (70%+ in precision oncology); matching is manual chart review | Cohort matching (FHIR) + trial matcher: plain-English description → live recruiting trials, explained with quotes |
+| Monitoring spread evenly | Verifying everything everywhere burns visit budget | CSM outlier screens, KRIs, deviation watch with SDV tiers — visit the risky sites |
+| Safety/query lag | Manual triage under 7/15-day clocks | Safety triage (MedDRA, SAE flags, clocks), ROR/PRR signals with FDR, FAERS/label checks |
+| Repeat regulatory mistakes | FDA warning letters cite the same CAPA/design/complaint failures for years | Warning-letter cross-check: your finding vs indexed FDA violations, with trial analogues |
 | Diversity mandates | FDORA requires Diversity Action Plans | Diversity planner: mix-vs-goal gaps + catch-up math |
 | Startup drag | 7–8 months site ID → activation | Startup tracker, enrollment forecast, trial outlook |
 
-## 30-second tour — the 13 tabs
+## Where it falls short (gaps)
+
+- **Lexical, not semantic.** No dense embeddings (zero-cost rule): "mutant = mutation" comes from a small synonym map, not understanding. A sponsor with embedding infrastructure out-matches us.
+- **No live feeds.** Everything is file-in or public API. No EHR, CTMS, or EDC integration — no automatic enrollment streams, no real-time monitoring.
+- **Predictions aren't trained on your history.** The outlook runs on disclosed priors plus a fitter waiting on gated TrialBench access — calibrated reasoning, not a model learned from a sponsor's past trials.
+- **Single-user local tool.** No multi-user roles, no 21 CFR Part 11 audit trail — not a system of record a regulator would accept.
+- **Public-data-bound.** Startup benchmarks derive from public dates, not real CRO timelines; warning letters must be hand-saved; the model layer only works if you bring your own endpoint.
+
+## Future improvements
+
+1. **EHR/CTMS feeds** — automatic enrollment streams and monitoring inputs instead of file uploads.
+2. **Train the outlook on sponsor history** — fit the success/failure model on real past-trial data (TrialBench access pending).
+3. **Dense retrieval** — swap TF-IDF term-vectors for embeddings when a dependency budget allows; the UI and verification already assume swappable ranking.
+4. **Regulated multi-user mode** — roles, Part 11 audit trail, e-signatures for lock readiness.
+5. **Richer evidence** — live FDA warning-letter ingestion if an API appears; full n2c2 validation under a data-use agreement.
+
+## 30-second tour — the 15 tabs
 
 | # | Tab | What it does |
 |---|---|---|
 | 1 | Protocol audit | I/E extraction, fragility, $ exposure, M11 export, burden, outlook, outcome benchmarks, PDF upload, DCT + criteria design |
-| 2 | Site feasibility | Ranked sites + Poisson-Gamma forecast (optional observed-history priors) |
-| 3 | Cohort matching | FHIR patients → ELIGIBLE / INELIGIBLE / REVIEW_REQUIRED + sweep + retention + attrition |
-| 4 | Safety triage | AE triage with SAE flags, clocks, Signal column, enrichment, site queries, PubMed, ROR/PRR signals |
-| 5 | Diversity plan | Enrollment mix vs goals, gaps, focus areas |
-| 6 | History & export | Every run persisted; forensics; CSV downloads |
-| 7 | Study startup | Pipeline stages vs benchmark flags |
-| 8 | Monitoring | Central KRIs with alert/watch/ok per site + zero-enroll risk |
-| 9 | Find trials | Reverse match: patient → ranked trials |
-| 10 | External control | Relaxed-criteria comparator pool + methods note |
-| 11 | Synthetic twins | Measurement-sensitivity stress test (in-memory) |
-| 12 | mCODE summary | Standard oncology profile + completeness |
-| 13 | Model validity | Independent n2c2 benchmark of the matcher |
+| 2 | Diversity plan | Enrollment mix vs goals, gaps, focus areas |
+| 3 | Model validity | Independent n2c2 benchmark of the matcher |
+| 4 | Site feasibility | Ranked sites + Poisson-Gamma forecast, live CT.gov competition, NPI checks |
+| 5 | Study startup | Pipeline stages vs benchmark flags |
+| 6 | Monitoring | Central KRIs + CSM outlier screens, deviation watch with SDV tiers |
+| 7 | Cohort matching | FHIR patients → ELIGIBLE / INELIGIBLE / REVIEW_REQUIRED + sweep + retention + attrition |
+| 8 | Find trials | Reverse match: patient bundle → ranked local protocols |
+| 9 | External control | Relaxed-criteria comparator pool + methods note |
+| 10 | Synthetic twins | Measurement-sensitivity stress test (in-memory) with prespec block |
+| 11 | mCODE summary | Standard oncology profile + completeness |
+| 12 | Safety triage | AE triage with SAE flags, clocks, FAERS/RxNorm/DailyMed enrichment, PubMed, ROR/PRR signals |
+| 13 | Warning letters | Your FDA letters indexed; finding cross-check with trial analogues |
+| 14 | History & export | Every run persisted; forensics; CSV downloads |
+| 15 | Trial matcher | Plain-English description → live recruiting CT.gov trials, explained (optional verified model drafts) |
 
-All tabs auto-run when the page loads. No login, no setup beyond the
-quickstart below.
+Most tabs auto-run when the page loads (matcher shows guidance until you
+describe a patient; history just replays saved runs). No login, no setup
+beyond the quickstart below.
 
 ## Quickstart (VS Code)
 
@@ -56,7 +81,7 @@ pip install -r requirements.txt        :: 5 packages: fastapi, uvicorn, pydantic
 
 :: 2. Seed the database and run the fast suite (no server needed):
 python seed_data.py
-python -m unittest discover -s tests  :: 69 tests, ~35 seconds (1 CI-only browser skip)
+python -m unittest discover -s tests  :: 177 tests, ~40 seconds (1 CI-only browser skip)
 
 :: 3. Start the API (leave running) and open the app:
 uvicorn backend.app:app --port 8000
@@ -68,7 +93,7 @@ uvicorn backend.app:app --port 8000
 
 OneDrive tip: right-click `.venv` → "Free up space" to keep it on-demand.
 
-## How it works without LLMs
+## How it works (deterministic core, optional model layer)
 
 | Cookbook agent | This build |
 |---|---|
@@ -76,7 +101,8 @@ OneDrive tip: right-click `.venv` → "Free up space" to keep it on-demand.
 | Site Scout | 35/25/20/20 feasibility formula; CT.gov lookup cached with offline fallback; completed-trial outcome benchmarks |
 | Cohort Matcher | FHIR R4 evaluator (labs, conditions, meds, age, notes) → ELIGIBLE / INELIGIBLE / REVIEW_REQUIRED, negation- and synonym-aware, with per-criterion provenance |
 | Safety Triage | MedDRA SOC keyword map + SAE rules + 7-day / 15-day clocks + drafted site queries + temporality/attribution/certainty enrichment |
-| EngineRouter | `ZeroCostRouter`: local Ollama if you run one, else deterministic stub (agents never need it) |
+| EngineRouter | `ZeroCostRouter`: your configured endpoint (`TRIALNEXUS_MODEL_BASE_URL`), local Ollama, else deterministic stub (agents never need it; drafts verified or discarded) |
+| Trial Matcher | CT.gov API v2 (`fields`-slimmed) → TF-IDF rank + TrialGPT-style criterion notes (met/conflict/unknown/N/A) + exclusion-weighted score |
 
 Multi-threshold lines evaluate every sub-rule: comma/and-joined panels
 (ANC + platelets + hemoglobin) must all pass; `or`-joined alternatives
@@ -669,6 +695,9 @@ session when the server demands it.
 - Full n2c2 validation needs a data-use agreement; only the synthetic
   fixture ships.
 - Single shared API token only — no per-user accounts or roles.
+- Lexical retrieval (TF-IDF + synonym map), not embeddings; predictions use
+  disclosed priors until fitted on sponsor history; no EHR/CTMS feeds.
+- See "Where it falls short (gaps)" above for the full list.
 
 ## Companion docs
 
