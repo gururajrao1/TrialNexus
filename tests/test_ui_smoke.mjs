@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 
 const TABS = ["audit", "sites", "cohort", "safety", "diversity", "history",
   "startup", "monitoring", "finder", "external", "twins", "mcode", "validity",
-  "letters"];
+  "letters", "matcher"];
 const IDS = new Set([
   "apiStatus", "snapshot", "snapSub", "sitesJson", "aeJson", "bundleList",
   "auditPid", "auditResult", "siteTarget", "siteCondition", "siteLive", "sitesResult",
@@ -16,6 +16,8 @@ const IDS = new Set([
   "twinsBundle", "twinsN", "twinsSeed", "twinsJitter", "twinsResult",
   "mcodeBundle", "mcodeResult", "validityResult",
   "lettersText", "lettersResult", "lettersCheckResult",
+  "matcherText", "matcherCondition", "matcherLocation", "matcherResult",
+  "matcherModel",
   "dlStructure", "copyStructure", "globalPid", "runAllBtn", "runAllStatus",
   "sweepSeed", "sweepN", "sweepResult", "sweepForm",
   "retentionBundle", "retentionResult", "retentionForm",

@@ -3,9 +3,11 @@ monitoring, trial finder, external control."""
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
 import json
+import os
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -47,6 +49,7 @@ from backend.agents.site_scout import fetch_ctgov_outcomes
 from backend.agents.startup_tracker import STAGES, startup_report
 from backend.agents.structured_export import build_structure
 from backend.agents.trial_finder import rank_trials
+from backend.agents.trial_matcher import match_trials
 from backend.config import FHIR_DIR
 from backend.database import (
     get_protocol,
@@ -405,6 +408,60 @@ def find_trials(body: FindTrialsRequest) -> dict[str, Any]:
             }
         )
     return rank_trials(body.bundle, protocols)
+
+
+class TrialMatchRequest(BaseModel):
+    description: str = ""
+    condition: str = ""
+    location: str = ""
+    max_trials: int = 5
+    model_explain: bool = False
+    model_rerank: bool = False
+
+
+@router.post("/api/trial-match")
+def trial_match(body: TrialMatchRequest) -> dict[str, Any]:
+    """Plain-English description -> live CT.gov trials, explained.
+
+    The deterministic pipeline always runs. model_explain / model_rerank add
+    a verified model layer (drafts + re-order, both checked or discarded)
+    and require TRIALNEXUS_LLM_ENABLED=1; the model endpoint and key come
+    from TRIALNEXUS_MODEL_BASE_URL / TRIALNEXUS_MODEL_API_KEY.
+    """
+    if not body.description.strip():
+        raise HTTPException(
+            status_code=422, detail="Describe the patient's condition first."
+        )
+    call_model = None
+    if body.model_explain or body.model_rerank:
+        if os.getenv("TRIALNEXUS_LLM_ENABLED", "0") != "1":
+            raise HTTPException(
+                status_code=403,
+                detail="Model layer is disabled. Restart the server with "
+                "TRIALNEXUS_LLM_ENABLED=1 to use it.",
+            )
+
+        from backend.router import ZeroCostRouter
+
+        router = ZeroCostRouter()
+
+        def call_model(system: str, user: str) -> dict[str, Any]:
+            result = asyncio.run(router.execute_query(system, user))
+            if result.get("engine") == "deterministic-local":
+                raise RuntimeError("no model endpoint reachable")
+            return result
+
+    try:
+        return match_trials(
+            body.description,
+            condition=body.condition,
+            location=body.location,
+            max_trials=body.max_trials,
+            call_model=call_model,
+            allow_rerank=body.model_rerank,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 class ExternalControlRequest(BaseModel):

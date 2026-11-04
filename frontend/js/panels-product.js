@@ -136,6 +136,60 @@ export async function runFinder() {
   } catch (err) { fail(el, err); }
 }
 
+export async function runTrialMatch() {
+  const el = $("matcherResult");
+  busy(el);
+  try {
+    const description = $("matcherText").value.trim();
+    if (!description) {
+      el.innerHTML = "<p class='muted'>Describe the patient's condition first.</p>";
+      return;
+    }
+    const useModel = $("matcherModel").checked;
+    const r = await postJSON("/api/trial-match", {
+      description,
+      condition: $("matcherCondition").value.trim(),
+      location: $("matcherLocation").value.trim(),
+      model_explain: useModel,
+      model_rerank: useModel,
+    });
+    if (!r.trials.length) {
+      el.innerHTML = "<p class='muted'>No recruiting trials found (" +
+        esc(r.source) + " search over " + esc(r.total_recruiting) +
+        "). Try fewer details or another condition.</p>";
+      return;
+    }
+    el.innerHTML = "<h3>" + esc(r.trials.length) + " top matches " +
+      "<span class='muted'>(" + esc(r.total_recruiting) + " recruiting, " +
+      esc(r.source) + " · " + esc(r.explain_source || "template") + " notes" +
+      (r.reranked ? " · model re-ranked" : "") + ")</span></h3>" +
+      (r.searched_terms ? "<p class='muted'>Searched: " + esc(r.searched_terms) +
+        (r.widened ? " — no hits near " + esc($("matcherLocation").value.trim()) +
+          ", widened beyond your location" : "") + "</p>" : "") +
+      ((r.model_warnings || []).length ? "<p class='muted'>Model checks: " +
+        esc(r.model_warnings.join(", ")) + " — templates stood in.</p>" : "") +
+      r.trials.map((t, i) =>
+        '<div class="record"><h3>#' + (i + 1) + " " + esc(t.title) +
+        ' <span class="badge ' + (t.verdict === "worth discussing" ? "b-elig" : "b-review") +
+        '">' + esc(t.verdict) + "</span> " +
+        '<span class="score">' + esc(t.score) + "%</span></h3>" +
+        "<p class='muted'>" +
+        (t.url ? "<a href='" + esc(t.url) + "' target='_blank' rel='noopener'>" +
+          esc(t.nct_id) + "</a>" : esc(t.nct_id)) +
+        " — " + esc(t.phase) + " — " + esc(t.status) +
+        (t.locations.length ? " — " + esc(t.locations.slice(0, 3).join("; ")) : "") + "</p>" +
+        "<p>" + esc(t.summary) + "</p>" +
+        (t.rerank_reason ? "<p><strong>Why this rank:</strong> " +
+          esc(t.rerank_reason) + "</p>" : "") +
+        "<ul class='tight'>" + t.notes.map((n) =>
+          "<li><strong>" + esc(n.verdict) + ":</strong> " + esc(n.plain) +
+          (n.draft ? " <span class='chip'>AI draft</span>" : "") +
+          " <span class='muted'>“" + esc(n.quote) + "”</span></li>").join("") +
+        "</ul></div>").join("") +
+      "<p class='muted'>" + esc(r.disclaimer) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
 export async function runExternal() {
   const el = $("externalResult");
   busy(el);

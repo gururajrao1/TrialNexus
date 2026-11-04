@@ -41,6 +41,8 @@
       <button id="tabbtn-letters" aria-controls="tab-letters" aria-selected="false"><span class="nav-n">13</span>Warning letters</button>
       <p class="nav-group">Record</p>
       <button id="tabbtn-history" aria-controls="tab-history" aria-selected="false"><span class="nav-n">14</span>History &amp; export</button>
+      <p class="nav-group">Live search</p>
+      <button id="tabbtn-matcher" aria-controls="tab-matcher" aria-selected="false"><span class="nav-n">15</span>Trial matcher</button>
     </nav>
     <p class="side-foot">Local build — no paid APIs.</p>
   </aside>
@@ -321,6 +323,20 @@
           <button type="submit">Refresh benchmark</button>
         </form>
         <div id="validityResult" class="results"><p class="muted">Running…</p></div>
+      </section>
+      <section id="tab-matcher" aria-labelledby="tabbtn-matcher" hidden>
+        <p class="job"><strong>The job:</strong> describe a patient's condition in plain words. The app searches recruiting trials on clinicaltrials.gov, ranks them by term relevance, and explains each top hit against its own eligibility criteria — with quotes. A matching aid, never an eligibility call.</p>
+        <form id="matcherForm" class="controls">
+          <label class="grow">Patient description (plain words)
+            <textarea id="matcherText" rows="3" spellcheck="false" placeholder="66-year-old woman, EGFR-mutant lung adenocarcinoma, prior osimertinib with progression, ECOG 1"></textarea>
+          </label>
+          <label>Condition <input id="matcherCondition" size="26" placeholder="optional"></label>
+          <label>Near <input id="matcherLocation" size="18" placeholder="optional — City, State"></label>
+          <label class="check"><input id="matcherModel" type="checkbox"> Draft with my model endpoint</label>
+          <button type="submit">Find matching trials</button>
+        </form>
+        <p class="muted">Model drafts are off by default. Ticking the box sends the description and the trials' public criteria to your configured endpoint (TRIALNEXUS_MODEL_BASE_URL) — never your inbox files. Needs TRIALNEXUS_LLM_ENABLED=1 on the server.</p>
+        <div id="matcherResult" class="results"><p class="muted">Not searched yet — describe the patient first.</p></div>
       </section>
       <footer class="foot">
         <p>TrialNexus OS — deterministic clinical-trials workspace. All analysis runs locally; nothing leaves this machine.</p>

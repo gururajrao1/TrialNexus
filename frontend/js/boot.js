@@ -28,12 +28,14 @@ import {
   runLetters,
   runLettersCheck,
   runMonitoring,
+  runTrialMatch,
   runStartup,
 } from "./panels-product.js";
 import { runMcode, runTwins, runValidity } from "./panels-tier.js";
 
 const TABS = ["audit", "sites", "cohort", "safety", "diversity", "history", "startup",
-  "monitoring", "finder", "external", "twins", "mcode", "validity", "letters"];
+  "monitoring", "finder", "external", "twins", "mcode", "validity", "letters",
+  "matcher"];
 let activeTab = "audit";
 const TAB_RUNNERS = {
   audit: () => { runAudit(); },
@@ -50,6 +52,7 @@ const TAB_RUNNERS = {
   mcode: () => { runMcode(); },
   validity: () => { runValidity(); },
   letters: () => { runLetters(); },
+  matcher: () => { runTrialMatch(); },
 };
 
 /* Tabs (sidebar buttons + deep links) */
@@ -175,6 +178,7 @@ $("twinsForm").addEventListener("submit", (e) => { e.preventDefault(); runTwins(
 $("mcodeForm").addEventListener("submit", (e) => { e.preventDefault(); runMcode(); });
 $("validityForm").addEventListener("submit", (e) => { e.preventDefault(); runValidity(); });
 $("lettersForm").addEventListener("submit", (e) => { e.preventDefault(); runLettersCheck(); });
+$("matcherForm").addEventListener("submit", (e) => { e.preventDefault(); runTrialMatch(); });
 $("sweepForm").addEventListener("submit", (e) => { e.preventDefault(); runSweep(); });
 $("retentionForm").addEventListener("submit", (e) => { e.preventDefault(); runRetention(); });
 $("outcomesForm").addEventListener("submit", (e) => { e.preventDefault(); runOutcomes(); });
@@ -292,10 +296,10 @@ if (g0) {
 }
 loadSnapshot().then(loadDemo).then(loadDiversityDefaults).then(() => {
   runAudit(); runSites(); runDiversity(); runStartup(); runMonitoring(); runFinder(); runExternal();
-  runTwins(); runMcode(); runValidity(); runLetters(); runSweep(); runRetention(); runOutcomes();
+  runTwins(); runMcode(); runValidity(); runLetters(); runTrialMatch(); runSweep(); runRetention(); runOutcomes();
   Promise.all([runCohort(), runSafety()]).then(() => { runHistory(); runForensics(); });
 }).catch(() => {
-  for (const id of ["auditResult", "sitesResult", "cohortResult", "safetyResult", "diversityResult", "historyResult", "startupResult", "monitoringResult", "finderResult", "externalResult", "twinsResult", "mcodeResult", "validityResult", "lettersResult", "sweepResult", "retentionResult", "forensicResult", "outcomesResult", "pubmedResult"]) {
+  for (const id of ["auditResult", "sitesResult", "cohortResult", "safetyResult", "diversityResult", "historyResult", "startupResult", "monitoringResult", "finderResult", "externalResult", "twinsResult", "mcodeResult", "validityResult", "lettersResult", "matcherResult", "sweepResult", "retentionResult", "forensicResult", "outcomesResult", "pubmedResult"]) {
     $(id).innerHTML = '<div class="error">API unreachable. Start it with: uvicorn backend.app:app --port 8000</div>';
   }
 });

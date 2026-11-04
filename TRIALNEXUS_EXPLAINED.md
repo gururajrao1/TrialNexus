@@ -183,6 +183,11 @@ an independent benchmark of the matcher, shipped in the product.
 
 Click **13 Warning letters** in the sidebar. Expect: your five saved letters indexed by firm, CMS number, and violation themes (CAPA, design control, promotion…), then a cross-check box — type a finding in plain words ("site closed a CAPA with no effectiveness check") and get the ranked FDA violations it resembles, with the cited text, the trial-world analogue, and a suggested deviation tier that links to the owning panel.
 
+### 15. Trial matcher — "which real trials fit this patient?"
+
+Click **15 Trial matcher** (Live search group). Type a plain-English description ("66-year-old woman, EGFR-mutant lung adenocarcinoma, prior osimertinib…") plus an optional location. The app distills searchable terms (raw prose is rejected by the registry), backs off from specific to broad when a rung returns nothing, ranks recruiting trials from clinicaltrials.gov, and explains each top hit against its own criteria — "likely met / possible conflict / check with the team", always with quotes, never "eligible".
+Optional model layer, off by default: tick "Draft with my model endpoint" and the app also drafts note phrasing and a re-ranked order through your configured endpoint (TRIALNEXUS_MODEL_BASE_URL + TRIALNEXUS_LLM_ENABLED=1). Every draft is verified — verdict echo, verbatim quotes, permutation check — or discarded with a named warning; templates always decide.
+
 ## 5-minute demo script (for explaining it to someone else)
 
 1. Open the app. Point at the snapshot: "3 protocols, 3 sites, 5 patients,
@@ -246,6 +251,14 @@ Key endpoints: `POST /api/audit-protocol/{id}`, `POST /api/score-sites`,
   `python tests/test_e2e_live.py` (45 live checks, 0 failures).
 - Working agreements: stdlib-first, no new dependencies without asking;
   every run is reproducible; history persists in SQLite and exports as CSV.
+- clinicaltrials.gov API v2 reuse map (one API, several features): 15 Trial
+  matcher (search + rank + explain) and the outcomes benchmark (completed
+  studies) already use it; mapped next are 04 Site feasibility (real
+  candidate sites from each study's locations module, not just counts),
+  05 Study startup (start/completion dates as activation benchmarks),
+  08 Find trials (live protocols as an extra rankable corpus beside the
+  seeded ones), and 06 Monitoring (competing-trial load per site as a
+  workload signal). Same cache + source-chip pattern everywhere.
 
 ## Glossary for non-clinical audiences
 
