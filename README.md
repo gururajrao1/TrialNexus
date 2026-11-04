@@ -29,6 +29,15 @@ still handled by gut feel and spreadsheets in small teams:
 | Diversity mandates | FDORA requires Diversity Action Plans | Diversity planner: mix-vs-goal gaps + catch-up math |
 | Startup drag | 7–8 months site ID → activation | Startup tracker, enrollment forecast, trial outlook |
 
+The money at risk is extreme, which is why completion analysis comes first:
+each delay day burns an estimated $600K–$8M, and roughly 19% of trials are
+terminated for failed accrual — after sites are open and the money is spent —
+stranding tens of thousands of enrolled patients. Knowing what it will
+*actually* cost and how long it will *actually* take to finish is the
+highest-value question in the building, and the one small teams can least
+afford to buy. That question — will this trial complete, at what cost, and
+where is it bleeding — is what every TrialNexus panel is aimed at.
+
 ## Where it falls short (gaps)
 
 - **Lexical, not semantic.** No dense embeddings (zero-cost rule): "mutant = mutation" comes from a small synonym map, not understanding. A sponsor with embedding infrastructure out-matches us.
