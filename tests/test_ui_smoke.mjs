@@ -48,6 +48,12 @@ const IDS = new Set([
   "inspPid", "inspDev", "inspOpen", "inspForm", "inspResult",
   "portBtn", "dsmbBtn", "portResult",
   "compThreshold", "compCountry", "compForm", "compResult",
+  "diffForm", "diffAName", "diffBName", "diffAText", "diffBText", "diffResult",
+  "letterBtn", "letterResult",
+  "digestBtn", "digestResult",
+  "actualsBtn", "actualsResult",
+  "funnelBtn", "funnelResult",
+  "closeForm", "closePid", "closeDev", "closeRet", "closeResult",
 ]);
 for (const t of TABS) { IDS.add("tabbtn-" + t); IDS.add("tab-" + t); IDS.add(t + "Form"); }
 

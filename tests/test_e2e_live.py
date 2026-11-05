@@ -8,6 +8,7 @@ import base64
 import json
 import sys
 import time
+import urllib.error
 import urllib.request
 
 BASE = "http://127.0.0.1:8000"
@@ -908,6 +909,97 @@ def main():
         len(ip.get("exhibits", [])) == 8
         and ip.get("open_items") == ["file week-8 report"],
         len(ip.get("exhibits", [])),
+    )
+    dg = post("/api/digest", {"threshold": 10000, "country": "United States"})
+    check(
+        "digest composes query pressure with honest counts",
+        dg.get("open_queries", -1) >= 0 and isinstance(dg.get("items"), list),
+        dg.get("open_queries"),
+    )
+    im = post(
+        "/api/import-map",
+        {
+            "text": "Site,Subject,Visit,Planned Day,Actual Day\nS1,P1,V2,14,22\n",
+            "target": "visits",
+        },
+    )
+    check(
+        "CSV import maps CTMS headers to feed rows",
+        im.get("n_rows") == 1
+        and im["records"][0].get("site_id") == "S1"
+        and im["records"][0].get("actual_day") == "22",
+        im.get("mapped_columns"),
+    )
+    try:
+        post("/api/import-map", {"text": "a,b\n1,2\n", "target": "visits"})
+        im_bad_code = None
+    except urllib.error.HTTPError as exc:
+        im_bad_code = exc.code
+    check(
+        "CSV import rejects unrecognized columns with 422",
+        im_bad_code == 422,
+        im_bad_code,
+    )
+    pd = post(
+        "/api/protocol-diff",
+        {
+            "a_text": "Trial T\nPhase 3\nInclusion criteria:\n1. Age 18 or older.\n",
+            "b_text": "Trial T\nPhase 3\nInclusion criteria:\n1. Age 21 or older.\n2. ECOG 0-1.\n",
+            "a_name": "v1",
+            "b_name": "v2",
+        },
+    )
+    check(
+        "protocol diff separates rewrites from adds",
+        {c["change"] for c in pd.get("criteria_changes", [])} == {"rewritten", "added"},
+        pd.get("n_changes"),
+    )
+    ac = post(
+        "/api/diversity-actuals",
+        {"bundles": bundles[:3], "targets": None},
+    )
+    check(
+        "diversity actuals counts enrolled mix",
+        ac.get("enrolled_n") == 3 and isinstance(ac.get("dimensions"), dict),
+        ac.get("enrolled_n"),
+    )
+    fn = json.loads(get("/api/funnel?protocol_id=PROT-TNX-001")[1])
+    check(
+        "funnel reports conversion from stored evaluations",
+        fn.get("n_evaluations", 0) >= 0
+        and "conversion_pct" in fn
+        and isinstance(fn.get("by_status"), dict),
+        fn.get("conversion_pct"),
+    )
+    ql = post(
+        "/api/query-letter",
+        {
+            "record": {
+                "discrepancy_id": "E2E-1",
+                "patient_id": "P1",
+                "suspect_drug": "osimertinib",
+                "reported_term": "rash",
+                "severity_grade": "Grade 2",
+                "site_query": {
+                    "query_target": "SITE-001",
+                    "query_text": "Confirm onset date.",
+                    "auto_close_condition": "onset entered",
+                },
+            }
+        },
+    )
+    check(
+        "query letter drafts to, subject, and question",
+        "SITE-001" in ql.get("body", "")
+        and "Confirm onset date." in ql.get("body", ""),
+        ql.get("subject"),
+    )
+    co = post("/api/closeout-pack", {"protocol_id": "PROT-TNX-001", "n_deviations": 1})
+    check(
+        "closeout pack mirrors inspection honesty contract",
+        len(co.get("exhibits", [])) == 7
+        and any("[FILL" in e.get("status", "") for e in co["exhibits"]),
+        len(co.get("exhibits", [])),
     )
 
     print(f"FAILURES: {len(FAILURES)}")

@@ -84,3 +84,34 @@ def forensic_report(evaluations: list[dict[str, Any]]) -> dict[str, Any]:
             "at criterion stringency."
         ),
     }
+
+
+def screening_funnel(evaluations: list[dict[str, Any]]) -> dict[str, Any]:
+    """Screening funnel from stored evaluations: status mix over time.
+
+    Buckets by ISO week of ``evaluated_at`` when present; rows without a
+    status count as unknown rather than being dropped. Pure.
+    """
+    stages = ("ELIGIBLE", "REVIEW_REQUIRED", "INELIGIBLE", "unknown")
+    counts = {s: 0 for s in stages}
+    weeks: dict[str, dict[str, int]] = {}
+    for r in evaluations:
+        if not isinstance(r, dict):
+            continue
+        status = str(r.get("eligibility_status", "unknown") or "unknown").upper()
+        if status not in counts:
+            status = "unknown"
+        counts[status] += 1
+        week = str(r.get("evaluated_at", "") or "")[:10]
+        if len(week) == 10:
+            cell = weeks.setdefault(week, {s: 0 for s in stages})
+            cell[status] += 1
+    n = sum(counts.values())
+    conv = round(100.0 * counts["ELIGIBLE"] / n, 1) if n else 0.0
+    return {
+        "n_evaluations": n,
+        "by_status": counts,
+        "conversion_pct": conv,
+        "by_week": [{"week": w, **weeks[w]} for w in sorted(weeks)],
+        "basis": "ELIGIBLE share of stored evaluations; weeks from evaluated_at dates.",
+    }

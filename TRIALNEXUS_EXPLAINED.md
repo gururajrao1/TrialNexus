@@ -71,6 +71,9 @@ two means with dropout inflation (defaults p1 0.5 vs p2 0.4 give 864
 total), check an NI margin against the 50%-preserved rule, and price a
 site budget from your own rate card (the app only multiplies your numbers;
 defaults price one 225-subject arm at screening + 6 cycles).
+Same tab: an **amendment diff** — paste the current and amended protocol
+texts and get added/dropped/rewritten criteria plus the fragility delta,
+so the amendment call is answered criterion by criterion.
 
 ### 2. Site feasibility — "which sites will actually enroll?"
 
@@ -120,6 +123,10 @@ aged queries up the site → CRA → sponsor chain; and a
 **concomitant-med screen** that pulls the suspect drug's live FDA label
 sections (ibuprofen + aspirin fires a warnings pointer; osimertinib
 correctly fires nothing — its label speaks in drug-class terms).
+Same feeds now also take **pasted CSV**: a real CTMS/EDC export is
+alias-mapped to deviation or query rows (unmapped columns reported, never
+silently dropped). Same tab: **site query letters** — every triaged record
+with a site query becomes a copy-ready letter with [FILL] sign-off.
 
 ### 5. Diversity plan — "can we defend our enrollment mix?"
 
@@ -128,6 +135,9 @@ Click **02 Diversity plan**. Expect: enrollment mix vs goals per dimension
 status, catch-up numbers, and top-3 focus areas. Demo n is small, so most
 groups show gaps — that is expected, and it is exactly the FDORA Diversity
 Action Plan arithmetic.
+Same tab: **enrolled actuals vs plan** — tick the enrolled bundles and
+read the achieved mix against the same goals, so gaps show up as numbers
+before the FDA asks.
 
 ### 6. History & export — "prove what we ran."
 
@@ -140,6 +150,10 @@ rates with top drivers over all stored runs. Same tab, lower down:
 a one-click DSMB pack shell (enrollment + safety counts, [FILL] for the
 recommendation), and a live CT.gov competition check per indication
 (NSCLC currently shows ~500 recruiting trials in the US).
+Same tab: a **morning digest** (query pressure, at-risk startups, live
+competition, ranked overdue-first — the standup screen) and a
+**screening funnel** (eligible share plus week-by-week trail from stored
+evaluations).
 
 ### 7. Study startup — "where is activation stuck?"
 
@@ -151,6 +165,9 @@ and an SIV checklist built from the audited protocol criteria. Same tab:
 an **inspection readiness pack** — the BIMO-style exhibit list compiled
 from the database (protocol on file, deviation count you enter, query and
 SAE counts live) with TMF-only items honestly marked [FILL].
+Same tab: a **study closeout pack** — the closeout mirror (lock
+certificate, SAE reconciliations, deviation log with CAPA closures,
+retention years you set) under the same honesty contract.
 
 ### 8. Monitoring — "which sites need a visit?"
 
@@ -167,7 +184,9 @@ consent/eligibility deviations and overdue queries when the feed carries them.
 Same tab: a **visit report** built from the screened findings (counts by
 severity plus the standard follow-up actions), a **deviation code & 5
 whys** box mapping types to CDISC-style categories with a root-cause
-scaffold and effectiveness check for the CAPA.
+scaffold and effectiveness check for the CAPA, and a **cross-site KRI
+heatmap** — one row per site, one column per KRI, so the outlier site
+reads across instead of down.
 
 ### 9. Find trials — "which trial fits this patient?"
 

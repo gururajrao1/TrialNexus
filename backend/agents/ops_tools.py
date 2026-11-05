@@ -430,3 +430,119 @@ def milestone_rollup(report: dict[str, Any]) -> dict[str, Any]:
         "flagged": sorted(flagged, key=lambda f: str(f["site_id"])),
         "basis": "Startup pipeline stages with benchmark flags; no action invented.",
     }
+
+
+def morning_digest(
+    protocol_rows: list[dict[str, Any]],
+    startup_flags: list[dict[str, Any]],
+    competition_alerts: list[dict[str, Any]],
+    milestone_pct: float = 0.0,
+) -> dict[str, Any]:
+    """Overnight digest: what needs attention this morning, in one screen.
+
+    Pure composition over caller-supplied rollups — per-protocol query
+    pressure, at-risk startups, and live competition alerts. Ranks items
+    by overdue queries first, then alerts, then flags.
+    """
+    protos = [p for p in (protocol_rows or []) if isinstance(p, dict)]
+    open_q = sum(int(p.get("open_queries", 0) or 0) for p in protos)
+    overdue_q = sum(int(p.get("overdue_queries", 0) or 0) for p in protos)
+    sae_q = sum(int(p.get("sae_queries", 0) or 0) for p in protos)
+    items = []
+    for p in sorted(protos, key=lambda x: -int(x.get("overdue_queries", 0) or 0)):
+        if int(p.get("overdue_queries", 0) or 0) or int(p.get("open_queries", 0) or 0):
+            items.append(
+                {
+                    "area": "queries",
+                    "protocol_id": str(p.get("protocol_id", "?")),
+                    "headline": (
+                        f"{p.get('open_queries', 0)} open / "
+                        f"{p.get('overdue_queries', 0)} overdue / "
+                        f"{p.get('sae_queries', 0)} SAE"
+                    ),
+                }
+            )
+    for a in competition_alerts or []:
+        if isinstance(a, dict):
+            items.append(
+                {
+                    "area": "competition",
+                    "protocol_id": str(a.get("protocol_id", "?")),
+                    "headline": (
+                        f"{a.get('recruiting_competitors', 0)} recruiting rivals "
+                        f"({a.get('source', '?')})"
+                    ),
+                }
+            )
+    for f in startup_flags or []:
+        if isinstance(f, dict):
+            items.append(
+                {
+                    "area": "startup",
+                    "protocol_id": str(f.get("site_id", "?")),
+                    "headline": f"{f.get('stage', '?')}: "
+                    + "; ".join(str(x) for x in (f.get("flags", []) or []))[:160],
+                }
+            )
+    return {
+        "open_queries": open_q,
+        "overdue_queries": overdue_q,
+        "sae_queries": sae_q,
+        "n_flagged_sites": len(startup_flags or []),
+        "n_competition_alerts": len(competition_alerts or []),
+        "activation_pct": milestone_pct,
+        "items": items,
+        "basis": "Counts from the app database plus live CT.gov competition; ranked overdue-first.",
+    }
+
+
+def closeout_pack(
+    protocol: dict[str, Any],
+    counts: dict[str, int],
+    retention_years: int = 25,
+) -> dict[str, Any]:
+    """Study-closeout exhibit list compiled from database counts.
+
+    Mirrors the inspection pack's honesty contract: compiled counts are
+    filled, TMF-owned originals stay [FILL].
+    """
+    pid = str((protocol or {}).get("id", "?"))
+    exhibits = [
+        {
+            "exhibit": "Final protocol + all amendments with approvals",
+            "status": "on file" if pid != "?" else "confirm",
+            "detail": str((protocol or {}).get("title", ""))[:120],
+        },
+        {
+            "exhibit": "Database lock certificate + audit trail export",
+            "status": "compiled" if counts.get("queries") is not None else "confirm",
+            "detail": f"{counts.get('queries', 0)} queries closed in log",
+        },
+        {
+            "exhibit": "SAE reconciliations (safety DB vs EDC)",
+            "status": "compiled",
+            "detail": f"{counts.get('sae', 0)} SAE-linked records in scope",
+        },
+        {
+            "exhibit": "Deviation log with CAPA closures",
+            "status": "compiled" if counts.get("deviations") else "confirm",
+            "detail": f"{counts.get('deviations', 0)} deviations in scope",
+        },
+        {
+            "exhibit": "Financial disclosures + investigator agreements",
+            "status": "[FILL — pull from TMF]",
+            "detail": "",
+        },
+        {
+            "exhibit": f"Essential-document retention ({retention_years}y per ICH-GCP)",
+            "status": "[FILL — archivist sign-off]",
+            "detail": "",
+        },
+        {"exhibit": "Clinical study report shell", "status": "[FILL]", "detail": ""},
+    ]
+    return {
+        "protocol_id": pid,
+        "exhibits": exhibits,
+        "ready": all(e["status"] not in ("confirm",) for e in exhibits),
+        "basis": "Compiled exhibits are counts from the app DB; [FILL] items live in the TMF.",
+    }

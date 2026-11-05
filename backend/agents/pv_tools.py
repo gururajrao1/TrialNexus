@@ -180,6 +180,42 @@ def sae_narrative(record: dict[str, Any]) -> dict[str, Any]:
     return {"narrative": "\n".join(lines)}
 
 
+def query_letter(record: dict[str, Any]) -> dict[str, Any]:
+    """Copy-ready site query letter from a triaged record. Template only."""
+    if not isinstance(record, dict):
+        raise ValueError("record must be an object")
+    site = record.get("site_query", {}) or {}
+    enrich = record.get("enrichment", {}) or {}
+    temp = enrich.get("temporality", {}) or {}
+    attr = enrich.get("attribution", {}) or {}
+    lines = [
+        f"To: {site.get('query_target', '[FILL — site contact]')}",
+        f"Subject: Data query {record.get('discrepancy_id', '[FILL]')} — "
+        f"patient {record.get('patient_id', '[FILL]')}",
+        "",
+        "Dear site team,",
+        "",
+        f"Please clarify the following record for {record.get('suspect_drug', '[FILL — drug]')}:",
+        f"reported term '{record.get('reported_term', '[FILL]')}' "
+        f"(severity {record.get('severity_grade', '[FILL]')}).",
+        f"Onset: {temp.get('onset', '[FILL]')} | "
+        f"Relatedness: {attr.get('relatedness', '[FILL]')}.",
+        "",
+        f"Question: {site.get('query_text', '[FILL — query text]')}",
+        "",
+        f"This query auto-closes when: {site.get('auto_close_condition', '[FILL]')}.",
+        "Please respond within the query SLA; overdue queries escalate per the aging policy.",
+        "",
+        "Kind regards,",
+        "[FILL — data manager, sponsor]",
+    ]
+    return {
+        "to": str(site.get("query_target", "")),
+        "subject": f"Data query {record.get('discrepancy_id', '?')}",
+        "body": "\n".join(lines),
+    }
+
+
 def screen_concomitant(
     label_sections: dict[str, Any], meds: list[str]
 ) -> dict[str, Any]:

@@ -120,6 +120,23 @@
           <button type="submit">Price budget</button>
         </form>
         <div id="budgetResult" class="results"><p class="muted">Not priced yet.</p></div>
+        <h3>Amendment diff</h3>
+        <p class="job"><strong>The job:</strong> paste the current protocol text and the amended text. Same criterion ID with different wording counts as a rewrite, not an add plus a drop.</p>
+        <form id="diffForm" class="controls">
+          <label>Before <input id="diffAName" value="v1.0" size="12"></label>
+          <label>After <input id="diffBName" value="v2.0" size="12"></label>
+          <details class="adv grow">
+            <summary>Paste both texts</summary>
+            <label class="grow">Before (protocol text)
+              <textarea id="diffAText" rows="6" spellcheck="false" placeholder="Paste current protocol criteria text"></textarea>
+            </label>
+            <label class="grow">After (protocol text)
+              <textarea id="diffBText" rows="6" spellcheck="false" placeholder="Paste amended protocol criteria text"></textarea>
+            </label>
+          </details>
+          <button type="submit">Diff protocols</button>
+        </form>
+        <div id="diffResult" class="results"><p class="muted">Not diffed yet.</p></div>
       </section>
       <section id="tab-sites" aria-labelledby="tabbtn-sites" hidden>
         <form id="sitesForm" class="controls">
@@ -216,8 +233,8 @@
           <button type="button" id="loadAging">Load my queries</button>
           <span id="agingNote" class="muted"></span>
           <details class="adv grow">
-            <summary>Or paste records <span class="muted">(JSON list)</span></summary>
-            <label class="grow">Query records (JSON list)
+            <summary>Or paste records <span class="muted">(JSON list or CSV export)</span></summary>
+            <label class="grow">Query records (JSON list or pasted CSV)
               <textarea id="agingJson" rows="8" spellcheck="false" placeholder='[{"id": "Q-1", "created_at": "2026-09-01", "resolution_status": "OPEN"}]'></textarea>
             </label>
           </details>
@@ -258,6 +275,10 @@
           <button type="submit">Screen concomitants</button>
         </form>
         <div id="contraResult" class="results"><p class="muted">Not screened yet.</p></div>
+        <h3>Site query letters</h3>
+        <p class="job"><strong>The job:</strong> turn every triaged record with a site query into a copy-ready letter — to, subject, question, auto-close condition, sign-off left as [FILL].</p>
+        <div class="controls"><button id="letterBtn" type="button">Draft letters (triaged records)</button></div>
+        <div id="letterResult" class="results"><p class="muted">Triage safety above first.</p></div>
       </section>
       <section id="tab-letters" aria-labelledby="tabbtn-letters" hidden>
         <h3>Letter library (your files)</h3>
@@ -295,6 +316,10 @@
         </form>
         <p class="muted">Uses the bundles ticked in Cohort matching (or all demo bundles if none).</p>
         <div id="diversityResult" class="results"><p class="muted">Running…</p></div>
+        <h3>Enrolled actuals vs plan</h3>
+        <p class="job"><strong>The job:</strong> count the ticked bundles as enrolled and read the mix against the same goals — are we closing the gaps or repeating them?</p>
+        <div class="controls"><button id="actualsBtn" type="button">Count enrolled mix</button></div>
+        <div id="actualsResult" class="results"><p class="muted">Not counted yet.</p></div>
       </section>
       <section id="tab-history" aria-labelledby="tabbtn-history" hidden>
         <form id="historyForm" class="controls">
@@ -303,8 +328,16 @@
           <span id="exportLinks" class="muted"></span>
         </form>
         <div id="historyResult" class="results"><p class="muted">Running…</p></div>
+        <h3>Morning digest</h3>
+        <p class="job"><strong>The job:</strong> one screen before standup — query pressure by protocol, at-risk startups, live competition alerts, ranked overdue-first. Threshold and country come from the competition check below.</p>
+        <div class="controls"><button id="digestBtn" type="button">Morning digest</button></div>
+        <div id="digestResult" class="results"><p class="muted">Not composed yet.</p></div>
         <h3>Screen-failure forensics</h3>
         <div id="forensicResult" class="results"><p class="muted">Running…</p></div>
+        <h3>Screening funnel</h3>
+        <p class="job"><strong>The job:</strong> conversion from stored evaluations — eligible share plus a week-by-week trail for this protocol.</p>
+        <div class="controls"><button id="funnelBtn" type="button">Funnel (this protocol)</button></div>
+        <div id="funnelResult" class="results"><p class="muted">Not funneled yet — run Cohort matching first.</p></div>
         <h3>Portfolio, DSMB & competition</h3>
         <p class="job"><strong>The job:</strong> roll the database up to a protocol portfolio, draft the DSMB pack shell for this protocol, and check how many trials are recruiting against your indications on clinicaltrials.gov right now.</p>
         <div class="controls">
@@ -349,6 +382,15 @@
           <button type="submit">Build pack</button>
         </form>
         <div id="inspResult" class="results"><p class="muted">Not built yet.</p></div>
+        <h3>Study closeout pack</h3>
+        <p class="job"><strong>The job:</strong> the closeout mirror of the inspection pack — lock certificate, SAE reconciliations, deviation log with CAPA closures compiled from the database; TMF originals stay [FILL].</p>
+        <form id="closeForm" class="controls">
+          <label>Protocol ID <input id="closePid" value="PROT-TNX-001" size="18"></label>
+          <label>Deviations in scope <input id="closeDev" type="number" value="0" min="0" size="6"></label>
+          <label>Retention (years) <input id="closeRet" type="number" value="25" min="1" size="6"></label>
+          <button type="submit">Build closeout</button>
+        </form>
+        <div id="closeResult" class="results"><p class="muted">Not built yet.</p></div>
       </section>
       <section id="tab-monitoring" aria-labelledby="tabbtn-monitoring" hidden>
         <form id="monitoringForm" class="controls">
@@ -363,8 +405,8 @@
           <button type="button" id="loadDev">Load my visits</button>
           <span id="devNote" class="muted"></span>
           <details class="adv grow">
-            <summary>Or paste records <span class="muted">(JSON list)</span></summary>
-            <label class="grow">Visit records (JSON list)
+            <summary>Or paste records <span class="muted">(JSON list or CSV export)</span></summary>
+            <label class="grow">Visit records (JSON list or pasted CSV)
               <textarea id="devJson" rows="8" spellcheck="false" placeholder='[{"site_id": "SITE-001", "subject": "a", "planned_day": 14, "actual_day": 22}]'></textarea>
             </label>
           </details>

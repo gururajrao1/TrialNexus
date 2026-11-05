@@ -982,3 +982,158 @@ def signal_review_endpoint(body: SignalReviewRequest) -> dict[str, Any]:
     from backend.agents.pv_tools import review_signals
 
     return review_signals(body.signals, body.decisions)
+
+
+class DigestRequest(BaseModel):
+    threshold: int = 20
+    country: str = "United States"
+
+
+@router.post("/api/digest")
+def digest_endpoint(body: DigestRequest) -> dict[str, Any]:
+    """Morning digest: query pressure, startup flags, live competition."""
+    from backend.agents.lock_readiness import query_aging
+    from backend.agents.ops_tools import morning_digest
+    from backend.agents.site_scout import fetch_ctgov_competitors
+    from backend.agents.startup_tracker import startup_report
+
+    init_db()
+    rows = []
+    for p in list_protocols():
+        pid = p.get("id", "?")
+        queries = list_safety_queries(pid)
+        evaluations = list_patient_evaluations(pid)
+        open_q = [
+            q
+            for q in queries
+            if str(q.get("resolution_status", "")).upper() != "RESOLVED"
+        ]
+        rows.append(
+            {
+                "protocol_id": pid,
+                "open_queries": len(open_q),
+                "overdue_queries": query_aging(queries).get("n_overdue", 0),
+                "sae_queries": sum(1 for q in open_q if q.get("is_sae")),
+                "evaluations": len(evaluations),
+            }
+        )
+    report = startup_report(list_startup(), list_sites())
+    flags = [f for f in (report.get("sites", []) or []) if f.get("flags")]
+    alerts = []
+    for p in list_protocols():
+        indication = str(p.get("indication", "") or "")
+        if not indication:
+            continue
+        try:
+            got = fetch_ctgov_competitors(indication, body.country)
+        except Exception:
+            got = {"count": 0, "source": "offline-fallback"}
+        if int(got.get("count", 0) or 0) >= max(1, body.threshold):
+            alerts.append(
+                {
+                    "protocol_id": p.get("id", "?"),
+                    "recruiting_competitors": int(got.get("count", 0) or 0),
+                    "source": got.get("source", "?"),
+                }
+            )
+    return morning_digest(rows, flags, alerts)
+
+
+class ImportMapRequest(BaseModel):
+    text: str = ""
+    target: str = ""
+
+
+@router.post("/api/import-map")
+def import_map_endpoint(body: ImportMapRequest) -> dict[str, Any]:
+    """Map a pasted CTMS/EDC CSV export to feed rows."""
+    from backend.agents.inbox import map_csv_records
+
+    out = map_csv_records(body.text, body.target)
+    if out.get("error") and not out.get("records"):
+        raise HTTPException(status_code=422, detail=out["error"])
+    return out
+
+
+class ProtocolDiffRequest(BaseModel):
+    a_text: str = ""
+    b_text: str = ""
+    a_name: str = "Current"
+    b_name: str = "Amended"
+
+
+@router.post("/api/protocol-diff")
+def protocol_diff_endpoint(body: ProtocolDiffRequest) -> dict[str, Any]:
+    """Amendment diff between two pasted protocol texts."""
+    from backend.agents.protocol_auditor import diff_protocols
+
+    try:
+        return diff_protocols(body.a_text, body.b_text, body.a_name, body.b_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+class ActualsRequest(BaseModel):
+    bundles: list[dict[str, Any]] = []
+    targets: dict[str, dict[str, float]] | None = None
+
+
+@router.post("/api/diversity-actuals")
+def diversity_actuals_endpoint(body: ActualsRequest) -> dict[str, Any]:
+    """Enrolled mix vs goals, counted from the bundles marked enrolled."""
+    if not body.bundles:
+        raise HTTPException(status_code=422, detail="enrolled bundles are required")
+    out = plan_diversity(body.bundles, body.targets)
+    out["enrolled_n"] = out.get("n", 0)
+    out["basis"] = (
+        "Counted from the bundles you marked enrolled; same buckets as the plan."
+    )
+    return out
+
+
+@router.get("/api/funnel")
+def funnel_endpoint(protocol_id: str = "") -> dict[str, Any]:
+    """Screening funnel from stored evaluations for one protocol."""
+    from backend.agents.failure_forensics import screening_funnel
+
+    init_db()
+    return screening_funnel(list_patient_evaluations(protocol_id or "PROT-TNX-001"))
+
+
+class QueryLetterRequest(BaseModel):
+    record: dict[str, Any] = {}
+
+
+@router.post("/api/query-letter")
+def query_letter_endpoint(body: QueryLetterRequest) -> dict[str, Any]:
+    """Copy-ready site query letter for one triaged record."""
+    from backend.agents.pv_tools import query_letter
+
+    if not body.record:
+        raise HTTPException(status_code=422, detail="record is required")
+    try:
+        return query_letter(body.record)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+class CloseoutRequest(BaseModel):
+    protocol_id: str = ""
+    n_deviations: int = 0
+    retention_years: int = 25
+
+
+@router.post("/api/closeout-pack")
+def closeout_pack_endpoint(body: CloseoutRequest) -> dict[str, Any]:
+    """Study-closeout exhibit list compiled from database counts."""
+    from backend.agents.ops_tools import closeout_pack
+
+    init_db()
+    protocol = get_protocol(body.protocol_id) or {"id": body.protocol_id}
+    queries = list_safety_queries(body.protocol_id)
+    counts = {
+        "deviations": max(0, body.n_deviations),
+        "queries": len(queries),
+        "sae": sum(1 for q in queries if q.get("is_sae")),
+    }
+    return closeout_pack(protocol, counts, max(1, body.retention_years))

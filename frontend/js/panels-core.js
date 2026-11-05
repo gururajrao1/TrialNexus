@@ -4,7 +4,7 @@ export let lastSignals = [];
 export let lastAuditCriteria = null;
 export let lastAging = null;
 
-import { $, esc, fail, getJSON, postJSON } from "./api.js";
+import { $, esc, fail, getJSON, parseFeedText, postJSON } from "./api.js";
 import { COHORT_BADGE, SITE_BADGE, busy, critTable, evalTable, preJSON, table } from "./ui.js";
 import { demoBundles, prescreenEntries, selectedBundles, selectedExtBundles } from "./data.js";
 
@@ -298,9 +298,16 @@ export async function runAgingUpload() {
       el.innerHTML = "<p class='muted'>Upload a query file or paste records first.</p>";
       return;
     }
-    lastAging = await postJSON("/api/query-aging",
-      { records: JSON.parse(txt) });
-    el.innerHTML = agingHTML(lastAging);
+    const feed = await parseFeedText(txt, "queries");
+    if (!feed.records.length) {
+      el.innerHTML = "<p class='muted'>Upload a query file or paste records first.</p>";
+      return;
+    }
+    lastAging = await postJSON("/api/query-aging", { records: feed.records });
+    el.innerHTML = (feed.mapped ? "<p class='muted'>Mapped " + esc(feed.mapped.n_rows) +
+      " row(s) from CSV headers (" +
+      esc(Object.keys(feed.mapped.mapped_columns || {}).join(", ")) + "). " +
+      esc(feed.mapped.basis) + "</p>" : "") + agingHTML(lastAging);
   } catch (err) { fail(el, err); }
 }
 
@@ -681,6 +688,60 @@ export async function runEscalation() {
       })), [["id", "Query"], ["overdue", "Overdue"], ["level", "Level"], ["rule", "Action"]])
         : "<p class='muted'>Nothing overdue — all queries on-track.</p>") +
       "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runProtocolDiff() {
+  const el = $("diffResult");
+  busy(el);
+  try {
+    const a = $("diffAText").value.trim();
+    const b = $("diffBText").value.trim();
+    if (!a || !b) {
+      el.innerHTML = "<p class='muted'>Paste both protocol texts first.</p>";
+      return;
+    }
+    const r = await postJSON("/api/protocol-diff", {
+      a_text: a, b_text: b,
+      a_name: $("diffAName").value.trim() || "Current",
+      b_name: $("diffBName").value.trim() || "Amended",
+    });
+    el.innerHTML = "<h3>" + esc(r.n_changes) + " change(s) · fragility " +
+      esc(r.fragility_before) + " → " + esc(r.fragility_after) +
+      " (<span class='score'>" + (r.fragility_delta >= 0 ? "+" : "") +
+      esc(r.fragility_delta) + "</span>)</h3>" +
+      (r.metadata_changes.length ? "<h3>Header</h3>" + table(r.metadata_changes.map((m) => ({
+        field: m.field, before: m.before, after: m.after,
+      })), [["field", "Field"], ["before", "Before"], ["after", "After"]]) : "") +
+      (r.criteria_changes.length ? table(r.criteria_changes.map((c) => ({
+        id: c.id, kind: c.kind, change: c.change,
+        before: c.before, after: c.after,
+      })), [["id", "ID"], ["kind", "Kind"], ["change", "Change"],
+        ["before", "Before"], ["after", "After"]])
+        : "<p class='muted'>Criteria text identical.</p>") +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runQueryLetters() {
+  const el = $("letterResult");
+  busy(el);
+  try {
+    const targets = lastTriage.filter((t) => t.site_query && t.site_query.query_text);
+    if (!targets.length) {
+      el.innerHTML = "<p class='muted'>Triage safety above first — letters are drafted from triaged records.</p>";
+      return;
+    }
+    const letters = [];
+    for (const t of targets.slice(0, 25)) {
+      try {
+        letters.push(await postJSON("/api/query-letter", { record: t }));
+      } catch (e) { /* skip records the template rejects */ }
+    }
+    el.innerHTML = "<h3>" + esc(letters.length) + " letter(s)</h3>" +
+      letters.map((l) =>
+        "<div class='record'><h3>" + esc(l.subject) + "</h3>" +
+        "<pre class='mono'>" + esc(l.body) + "</pre></div>").join("");
   } catch (err) { fail(el, err); }
 }
 

@@ -50,3 +50,18 @@ export async function postJSON(path, payload) {
 export function fail(el, err) {
   el.innerHTML = '<div class="error">' + esc("Failed: " + err.message) + "</div>";
 }
+
+/* Feed input: pasted JSON list passes through; pasted CSV is alias-mapped
+   server-side so real CTMS/EDC exports load without hand-editing. */
+export async function parseFeedText(txt, target) {
+  const raw = String(txt || "").trim();
+  if (!raw) return { records: [], mapped: null };
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) throw new Error("not a list");
+    return { records: parsed, mapped: null };
+  } catch (e) {
+    const mapped = await postJSON("/api/import-map", { text: raw, target });
+    return { records: mapped.records || [], mapped };
+  }
+}

@@ -426,3 +426,81 @@ def parse_protocol(raw_text: str) -> dict[str, Any]:
         "exposure_basis": "Tufts CSDD median direct cost $535K per substantial Phase III amendment",
         "complexity": complexity,
     }
+
+
+def _diff_kind(
+    before: list[dict[str, Any]], after: list[dict[str, Any]], kind: str
+) -> list[dict[str, Any]]:
+    old = {c.get("id", "?"): c for c in before if isinstance(c, dict)}
+    new = {c.get("id", "?"): c for c in after if isinstance(c, dict)}
+    rows = []
+    for cid in sorted(set(old) | set(new)):
+        if cid not in old:
+            rows.append(
+                {
+                    "id": cid,
+                    "kind": kind,
+                    "change": "added",
+                    "before": "",
+                    "after": str(new[cid].get("raw_text", ""))[:200],
+                }
+            )
+        elif cid not in new:
+            rows.append(
+                {
+                    "id": cid,
+                    "kind": kind,
+                    "change": "dropped",
+                    "before": str(old[cid].get("raw_text", ""))[:200],
+                    "after": "",
+                }
+            )
+        elif str(old[cid].get("raw_text", "")) != str(new[cid].get("raw_text", "")):
+            rows.append(
+                {
+                    "id": cid,
+                    "kind": kind,
+                    "change": "rewritten",
+                    "before": str(old[cid].get("raw_text", ""))[:200],
+                    "after": str(new[cid].get("raw_text", ""))[:200],
+                }
+            )
+    return rows
+
+
+def diff_protocols(
+    a_text: str, b_text: str, a_name: str = "A", b_name: str = "B"
+) -> dict[str, Any]:
+    """Amendment diff: what changed between two protocol texts.
+
+    Criteria match by stable ID (INC-01 …); same ID with different wording
+    is a rewrite, not an add + drop. Pure.
+    """
+    if not str(a_text or "").strip() or not str(b_text or "").strip():
+        raise ValueError("both protocol texts are required")
+    a = parse_protocol(str(a_text))
+    b = parse_protocol(str(b_text))
+    rows = _diff_kind(
+        a["inclusion_criteria"], b["inclusion_criteria"], "inclusion"
+    ) + _diff_kind(a["exclusion_criteria"], b["exclusion_criteria"], "exclusion")
+    meta_keys = ("title", "phase", "primary_indication", "target_enrollment")
+    meta_changes = []
+    for key in meta_keys:
+        old = str(a["protocol_metadata"].get(key, ""))
+        new = str(b["protocol_metadata"].get(key, ""))
+        if old != new:
+            meta_changes.append({"field": key, "before": old[:120], "after": new[:120]})
+    frag_delta = round(
+        float(b["protocol_fragility_index"]) - float(a["protocol_fragility_index"]), 1
+    )
+    return {
+        "a_name": a_name,
+        "b_name": b_name,
+        "n_changes": len(rows) + len(meta_changes),
+        "criteria_changes": rows,
+        "metadata_changes": meta_changes,
+        "fragility_before": a["protocol_fragility_index"],
+        "fragility_after": b["protocol_fragility_index"],
+        "fragility_delta": frag_delta,
+        "basis": "IDs match INC/EXC numbering; renumbered protocols compare by position, verify by eye.",
+    }

@@ -17,6 +17,8 @@ import {
   runPdf,
   runPower,
   runPrescreen,
+  runProtocolDiff,
+  runQueryLetters,
   runPubmed,
   runRetention,
   runRiskRegister,
@@ -30,14 +32,18 @@ import {
 import {
   loadDiversityDefaults,
   renderWatchlist,
+  runActuals,
+  runCloseout,
   runCodeWhys,
   runCompetition,
   runDeviation,
+  runDigest,
   runDiversity,
   runDsmb,
   runExternal,
   runFinder,
   runForensics,
+  runFunnel,
   runHistory,
   runInspection,
   runLetters,
@@ -212,6 +218,12 @@ $("pdfForm").addEventListener("submit", (e) => { e.preventDefault(); runPdf(); }
 $("pubmedForm").addEventListener("submit", (e) => { e.preventDefault(); runPubmed(); });
 $("signalForm").addEventListener("submit", (e) => { e.preventDefault(); runSignals(); });
 $("crfForm").addEventListener("submit", (e) => { e.preventDefault(); runCrfTrace(); });
+$("diffForm").addEventListener("submit", (e) => { e.preventDefault(); runProtocolDiff(); });
+$("letterBtn").addEventListener("click", () => { runQueryLetters(); });
+$("digestBtn").addEventListener("click", () => { runDigest(); });
+$("actualsBtn").addEventListener("click", () => { runActuals(); });
+$("funnelBtn").addEventListener("click", () => { runFunnel(); });
+$("closeForm").addEventListener("submit", (e) => { e.preventDefault(); runCloseout(); });
 $("powerForm").addEventListener("submit", (e) => { e.preventDefault(); runPower(); });
 $("niForm").addEventListener("submit", (e) => { e.preventDefault(); runNiMargin(); });
 $("budgetForm").addEventListener("submit", (e) => { e.preventDefault(); runBudget(); });

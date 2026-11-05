@@ -1,5 +1,5 @@
 /* Product panel runners: diversity, history, startup, monitoring, finder, external. */
-import { $, esc, fail, getJSON, postJSON } from "./api.js";
+import { $, esc, fail, getJSON, parseFeedText, postJSON } from "./api.js";
 import { COHORT_BADGE, busy, table } from "./ui.js";
 import { demoBundles, diversityBundles, selectedExtBundles } from "./data.js";
 
@@ -113,7 +113,29 @@ export async function runMonitoring() {
            ["funnel", "Funnel"], ["dir", "Direction"]]) : "")
       ).join("") +
       "<p class='muted'>" + esc(csm.basis) + "</p>";
+    el.innerHTML += renderKriHeat(r.sites);
   } catch (err) { fail(el, err); }
+}
+
+function renderKriHeat(sites) {
+  const names = [...new Set((sites || []).flatMap((s) =>
+    (s.kris || []).map((k) => k.kri)))];
+  if (!sites || !sites.length || !names.length) return "";
+  const cls = (st) => st === "alert" ? "b-inelig" : (st === "watch" ? "b-review" : "b-elig");
+  let html = "<h3>Cross-site KRI heatmap</h3>" +
+    '<table class="grid"><thead><tr><th>Site</th>' +
+    names.map((n) => "<th>" + esc(n) + "</th>").join("") + "</tr></thead><tbody>";
+  for (const s of sites) {
+    const byName = Object.fromEntries((s.kris || []).map((k) => [k.kri, k]));
+    html += "<tr><td>" + esc(s.site_id) + "</td>" + names.map((n) => {
+      const k = byName[n];
+      if (!k) return "<td class='muted'>—</td>";
+      return "<td><span class='badge " + cls(k.status) + "' title='" +
+        esc(k.detail || "") + "'>" + esc(k.value) + "</span></td>";
+    }).join("") + "</tr>";
+  }
+  return html + "</tbody></table>" +
+    "<p class='muted'>One row per site, one column per KRI — the outlier site reads across, not down.</p>";
 }
 
 export async function runFinder() {
@@ -355,8 +377,13 @@ export async function runDeviation() {
       return;
     }
     const w = parseInt($("devWindow").value, 10) || 0;
+    const feed = await parseFeedText(txt, "visits");
+    if (!feed.records.length) {
+      el.innerHTML = "<p class='muted'>Upload a visit file or paste records first.</p>";
+      return;
+    }
     const r = await postJSON("/api/deviation-watch",
-      { records: JSON.parse(txt), window_days: w });
+      { records: feed.records, window_days: w });
     lastDevFindings = r.findings || [];
     lastDevTiers = r.by_site || [];
     lastMonitoringTiers = (r.by_site || []).map((s) => ({
@@ -598,5 +625,81 @@ export async function runCompetition() {
         })), [["pid", "Protocol"], ["ind", "Indication"],
           ["n", "Recruiting"], ["src", "Source"]])
       : "<p class='muted'>No indication at or above the threshold — clear field.</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runDigest() {
+  const el = $("digestResult");
+  busy(el);
+  try {
+    el.innerHTML = "<p class='muted'>Composing from the database + live registry…</p>";
+    const r = await postJSON("/api/digest", {
+      threshold: parseInt($("compThreshold").value, 10) || 20,
+      country: $("compCountry").value.trim() || "United States",
+    });
+    el.innerHTML = "<h3>This morning: <span class='score'>" + esc(r.open_queries) +
+      "</span> open / <span class='score'>" + esc(r.overdue_queries) + "</span> overdue" +
+      " · " + esc(r.sae_queries) + " SAE · " + esc(r.n_flagged_sites) + " flagged site(s)" +
+      " · " + esc(r.n_competition_alerts) + " competition alert(s)</h3>" +
+      (r.items.length ? table(r.items.map((it) => ({
+        area: it.area, ref: it.protocol_id, what: it.headline,
+      })), [["area", "Area"], ["ref", "Ref"], ["what", "Headline"]])
+        : "<p class='muted'>Nothing needs attention — clear morning.</p>") +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runActuals() {
+  const el = $("actualsResult");
+  busy(el);
+  try {
+    const r = await postJSON("/api/diversity-actuals", { bundles: diversityBundles(), targets: null });
+    el.innerHTML = "<h3>Enrolled n=" + esc(r.enrolled_n) + "</h3>" +
+      Object.entries(r.dimensions).map(([dim, rows]) =>
+        "<h3>" + esc(dim) + "</h3>" + table(rows.map((x) => ({
+          group: x.group, n: x.n, actual: x.actual_pct + "%",
+          gap: (x.gap_pp > 0 ? "+" : "") + x.gap_pp + "pp", status: x.status,
+        })), [["group", "Group"], ["n", "n"], ["actual", "Actual"],
+          ["gap", "Gap vs goal"], ["status", "Status"]])).join("") +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runFunnel() {
+  const el = $("funnelResult");
+  busy(el);
+  try {
+    const pid = ($("historyPid") && $("historyPid").value.trim()) || "PROT-TNX-001";
+    const r = await getJSON("/api/funnel?protocol_id=" + encodeURIComponent(pid));
+    const b = r.by_status;
+    el.innerHTML = "<h3>" + esc(r.n_evaluations) + " evaluated · conversion " +
+      "<span class='score'>" + esc(r.conversion_pct) + "%</span></h3>" +
+      "<p>ELIGIBLE <strong>" + esc(b.ELIGIBLE) + "</strong> · REVIEW_REQUIRED " +
+      esc(b.REVIEW_REQUIRED) + " · INELIGIBLE " + esc(b.INELIGIBLE) +
+      (b.unknown ? " · unknown " + esc(b.unknown) : "") + "</p>" +
+      (r.by_week.length ? table(r.by_week.map((w) => ({
+        week: w.week, elig: w.ELIGIBLE, review: w.REVIEW_REQUIRED,
+        inelig: w.INELIGIBLE,
+      })), [["week", "Week"], ["elig", "Eligible"], ["review", "Review"],
+        ["inelig", "Ineligible"]]) : "") +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runCloseout() {
+  const el = $("closeResult");
+  busy(el);
+  try {
+    const r = await postJSON("/api/closeout-pack", {
+      protocol_id: $("closePid").value.trim(),
+      n_deviations: parseInt($("closeDev").value, 10) || 0,
+      retention_years: parseInt($("closeRet").value, 10) || 25,
+    });
+    el.innerHTML = "<h3>Closeout — " + esc(r.protocol_id) +
+      ' <span class="badge ' + (r.ready ? "b-elig" : "b-review") + '">' +
+      (r.ready ? "compiled exhibits ready" : "TMF items open") + "</span></h3>" +
+      table(r.exhibits.map((e) => ({ exhibit: e.exhibit, status: e.status, detail: e.detail || "—" })),
+        [["exhibit", "Exhibit"], ["status", "Status"], ["detail", "Detail"]]) +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
   } catch (err) { fail(el, err); }
 }

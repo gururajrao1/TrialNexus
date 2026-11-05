@@ -84,6 +84,127 @@ def read_inbox_text(slot: str, inbox_dir: Path | None = None) -> tuple[bool, str
     return True, json.dumps(data, indent=1)
 
 
+#: CSV header aliases (lowercased, spaces/dashes stripped) per feed.
+VISIT_ALIASES = {
+    "site_id": ("site", "siteid", "sitecode", "center", "centerid"),
+    "subject": ("subject", "subjectid", "patient", "patientid", "subjid"),
+    "visit": ("visit", "visitname", "event", "eventname", "folder"),
+    "planned_day": ("planned", "plannedday", "targetday", "scheduledday", "windowday"),
+    "actual_day": ("actual", "actualday", "visitday", "performedday", "accountday"),
+    "consent_date": ("consent", "consentdate", "icfdate", "signeddate"),
+    "visit_date": ("visitdate", "date", "dos", "assessmentdate"),
+    "assessments_required": (
+        "required",
+        "assessmentsrequired",
+        "expected",
+        "plannedassessments",
+    ),
+    "assessments_done": (
+        "done",
+        "assessmentsdone",
+        "performed",
+        "completedassessments",
+    ),
+}
+QUERY_ALIASES = {
+    "id": ("id", "queryid", "qid", "dataname", "query"),
+    "created_at": ("created", "createdat", "date", "opendate", "raisedate", "dos"),
+    "resolution_status": ("status", "resolutionstatus", "state", "resolution"),
+    "is_sae": ("sae", "issae", "serious", "seriousae"),
+}
+_LIST_SPLIT = (";", "|")
+
+
+def _norm_header(name: str) -> str:
+    return "".join(ch for ch in str(name or "").lower() if ch.isalnum())
+
+
+def _split_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(x).strip() for x in value if str(x).strip()]
+    text = str(value or "").strip()
+    if not text:
+        return []
+    for sep in _LIST_SPLIT:
+        if sep in text:
+            return [p.strip() for p in text.split(sep) if p.strip()]
+    return [text]
+
+
+def _truthy(value: Any) -> bool:
+    return str(value or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "y",
+        "sae",
+        "serious",
+    )
+
+
+def map_csv_records(text: str, target: str) -> dict[str, Any]:
+    """Map a real CTMS/EDC CSV export to deviation-watch or query-aging rows.
+
+    Header matching is alias-based and case-insensitive; unmapped columns
+    are reported, never dropped silently. Never raises — bad input is an
+    ``error``, matching the inbox convention.
+    """
+    import csv
+    from io import StringIO
+
+    aliases = {"visits": VISIT_ALIASES, "queries": QUERY_ALIASES}.get(
+        str(target or "").lower()
+    )
+    if aliases is None:
+        return {"records": [], "error": "target must be 'visits' or 'queries'"}
+    try:
+        rows = list(csv.DictReader(StringIO(str(text or ""))))
+    except (csv.Error, ValueError) as exc:
+        return {"records": [], "error": f"unreadable CSV: {exc}"}
+    if not rows:
+        return {"records": [], "error": "no data rows found"}
+    headers = [_norm_header(h) for h in (rows[0].keys() or [])]
+    col_of: dict[str, str] = {}
+    for key, names in aliases.items():
+        for raw, norm in zip(rows[0].keys() or [], headers):
+            if norm in names and key not in col_of:
+                col_of[key] = raw
+                break
+    unmapped = [
+        raw
+        for raw, norm in zip(rows[0].keys() or [], headers)
+        if raw not in set(col_of.values())
+    ]
+    records = []
+    for row in rows:
+        rec: dict[str, Any] = {}
+        for key, col in col_of.items():
+            val = (row.get(col) or "").strip()
+            if key in ("assessments_required", "assessments_done"):
+                rec[key] = _split_list(val)
+            elif key == "is_sae":
+                rec[key] = _truthy(val)
+            else:
+                rec[key] = val
+        if any(str(v).strip() for v in rec.values() if not isinstance(v, list)) or any(
+            rec.get(k) for k in ("assessments_required", "assessments_done")
+        ):
+            records.append(rec)
+    if not col_of:
+        return {
+            "records": [],
+            "unmapped_columns": unmapped,
+            "error": "no recognized columns — see unmapped_columns",
+        }
+    return {
+        "records": records,
+        "mapped_columns": col_of,
+        "unmapped_columns": unmapped,
+        "n_rows": len(records),
+        "basis": "Alias-mapped CSV headers; verify one row before trusting a feed.",
+    }
+
+
 def scan_bundles(inbox_dir: Path | None = None) -> list[dict[str, Any]]:
     """User FHIR bundles, named inbox/<file>. Skips unreadable files."""
     root = inbox_dir or INBOX_DIR
