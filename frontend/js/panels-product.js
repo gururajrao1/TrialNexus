@@ -573,10 +573,19 @@ export async function runInspection() {
       "</span></h3>" +
       table(r.exhibits.map((e) => ({ exhibit: e.exhibit, status: e.status, detail: e.detail || "—" })),
         [["exhibit", "Exhibit"], ["status", "Status"], ["detail", "Detail"]]) +
+      exhibitLinks(r.exhibits) +
       (r.open_items.length ? "<h3>Open items</h3><ul class='tight'>" +
         r.open_items.map((o) => "<li>" + esc(o) + "</li>").join("") + "</ul>" : "") +
       "<p class='muted'>" + esc(r.basis) + "</p>";
   } catch (err) { fail(el, err); }
+}
+
+function exhibitLinks(exhibits) {
+  const linked = (exhibits || []).filter((e) => e.panel);
+  if (!linked.length) return "";
+  return "<p>" + linked.map((e) =>
+    "<button type='button' data-goto='" + esc(e.panel) + "'>" +
+    esc(e.exhibit.slice(0, 28)) + " →</button>").join(" ") + "</p>";
 }
 
 export async function runPortfolio() {
@@ -700,6 +709,7 @@ export async function runCloseout() {
       (r.ready ? "compiled exhibits ready" : "TMF items open") + "</span></h3>" +
       table(r.exhibits.map((e) => ({ exhibit: e.exhibit, status: e.status, detail: e.detail || "—" })),
         [["exhibit", "Exhibit"], ["status", "Status"], ["detail", "Detail"]]) +
+      exhibitLinks(r.exhibits) +
       "<p class='muted'>" + esc(r.basis) + "</p>";
   } catch (err) { fail(el, err); }
 }

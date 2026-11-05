@@ -5,8 +5,8 @@ locally when Playwright is absent so the repo stays storage-light —
 no browser is ever downloaded to the developer machine for this.
 
 Requires the API on http://127.0.0.1:8000 (CI starts it first).
-Asserts: 13 workflow tabs present, snapshot metrics render, no
-blank-page failure, and saves a screenshot artifact.
+Asserts: all workflow tabs present (audit through matcher), snapshot
+metrics render, no blank-page failure, and saves a screenshot artifact.
 """
 
 import os
@@ -48,7 +48,7 @@ class PixelTests(unittest.TestCase):
             page.goto(BASE + "/", wait_until="domcontentloaded")
             page.wait_for_selector("#snapshot .metric", timeout=30000)
             tabs = page.query_selector_all("[id^='tabbtn-']")
-            self.assertEqual(len(tabs), 13)
+            self.assertEqual(len(tabs), 15)
             metrics = page.inner_text("#snapshot")
             for label in ("Protocols", "Sites", "FHIR patients"):
                 self.assertIn(label, metrics)

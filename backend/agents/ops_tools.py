@@ -316,6 +316,7 @@ def inspection_pack(
             "exhibit": "Protocol + all amendments",
             "status": "on file" if pid != "?" else "confirm",
             "detail": str((protocol or {}).get("title", ""))[:120],
+            "panel": "audit",
         },
         {
             "exhibit": "Delegation + training records",
@@ -331,6 +332,7 @@ def inspection_pack(
             "exhibit": "Deviation log",
             "status": "compiled" if counts.get("deviations") else "confirm",
             "detail": f"{counts.get('deviations', 0)} findings in scope",
+            "panel": "monitoring",
         },
         {
             "exhibit": "Query log with aging",
@@ -339,11 +341,13 @@ def inspection_pack(
                 f"{counts.get('queries', 0)} queries, "
                 f"{counts.get('overdue', 0)} overdue"
             ),
+            "panel": "safety",
         },
         {
             "exhibit": "SAE listings with reporting clocks",
             "status": "compiled",
             "detail": f"{counts.get('sae', 0)} SAE-linked records",
+            "panel": "safety",
         },
         {
             "exhibit": "Monitoring visit reports + CAPAs",
@@ -512,21 +516,25 @@ def closeout_pack(
             "exhibit": "Final protocol + all amendments with approvals",
             "status": "on file" if pid != "?" else "confirm",
             "detail": str((protocol or {}).get("title", ""))[:120],
+            "panel": "audit",
         },
         {
             "exhibit": "Database lock certificate + audit trail export",
             "status": "compiled" if counts.get("queries") is not None else "confirm",
             "detail": f"{counts.get('queries', 0)} queries closed in log",
+            "panel": "history",
         },
         {
             "exhibit": "SAE reconciliations (safety DB vs EDC)",
             "status": "compiled",
             "detail": f"{counts.get('sae', 0)} SAE-linked records in scope",
+            "panel": "safety",
         },
         {
             "exhibit": "Deviation log with CAPA closures",
             "status": "compiled" if counts.get("deviations") else "confirm",
             "detail": f"{counts.get('deviations', 0)} deviations in scope",
+            "panel": "monitoring",
         },
         {
             "exhibit": "Financial disclosures + investigator agreements",

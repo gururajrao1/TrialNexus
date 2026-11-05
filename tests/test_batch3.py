@@ -167,7 +167,7 @@ class DigestCloseoutTests(unittest.TestCase):
         self.assertEqual(out["n_competition_alerts"], 1)
 
     def test_closeout_marks_tmf_fills(self):
-        from backend.agents.ops_tools import closeout_pack
+        from backend.agents.ops_tools import closeout_pack, inspection_pack
 
         out = closeout_pack(
             {"id": "P", "title": "T"}, {"queries": 4, "sae": 1, "deviations": 2}
@@ -175,6 +175,15 @@ class DigestCloseoutTests(unittest.TestCase):
         self.assertEqual(len(out["exhibits"]), 7)
         self.assertTrue(any("[FILL" in e["status"] for e in out["exhibits"]))
         self.assertTrue(out["ready"])
+        linked = [e for e in out["exhibits"] if e.get("panel")]
+        self.assertTrue(linked)
+        self.assertTrue(all(e["status"] != "[FILL]" for e in linked))
+        insp = inspection_pack(
+            {"id": "P", "title": "T"},
+            {"queries": 1, "overdue": 0, "sae": 0, "deviations": 1},
+            [],
+        )
+        self.assertTrue(any(e.get("panel") == "safety" for e in insp["exhibits"]))
 
 
 if __name__ == "__main__":
