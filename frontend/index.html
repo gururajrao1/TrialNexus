@@ -90,6 +90,36 @@
           <button type="submit">Fetch benchmark</button>
         </form>
         <div id="outcomesResult" class="results"><p class="muted">Not fetched yet — opt-in live lookup.</p></div>
+        <h3>Sample size & budget</h3>
+        <p class="job"><strong>The job:</strong> size the trial and price the site work before the protocol locks. Closed-form two-sample math with dropout inflation, an NI margin check against the 50%-preserved rule, and a site budget from your own rate card — the app only multiplies your numbers.</p>
+        <form id="powerForm" class="controls">
+          <label>Design <select id="powerKind"><option value="proportions">Proportions</option><option value="means">Means</option></select></label>
+          <label>p1 <input id="powerP1" type="number" value="0.5" step="0.05" min="0" max="1"></label>
+          <label>p2 <input id="powerP2" type="number" value="0.4" step="0.05" min="0" max="1"></label>
+          <label>Delta <input id="powerDelta" type="number" value="0.5" step="0.1" size="6"></label>
+          <label>SD <input id="powerSd" type="number" value="1" step="0.1" min="0.1" size="6"></label>
+          <label>Alpha <input id="powerAlpha" type="number" value="0.05" step="0.01" min="0.001" max="0.5" size="6"></label>
+          <label>Power <input id="powerPower" type="number" value="0.8" step="0.05" min="0.5" max="0.99" size="6"></label>
+          <label>Dropout <input id="powerDropout" type="number" value="0.1" step="0.05" min="0" max="0.9" size="6"></label>
+          <button type="submit">Size it</button>
+        </form>
+        <div id="powerResult" class="results"><p class="muted">Not sized yet.</p></div>
+        <form id="niForm" class="controls">
+          <label>Historical effect (M1) <input id="niEffect" type="number" value="0.3" step="0.05" min="0.01" size="8"></label>
+          <label>Margin <input id="niMargin" type="number" value="0.1" step="0.01" min="0" size="8"></label>
+          <button type="submit">Check margin</button>
+        </form>
+        <div id="niResult" class="results"><p class="muted">Not checked yet.</p></div>
+        <form id="budgetForm" class="controls">
+          <details class="adv grow">
+            <summary>Edit the rate card <span class="muted">(your costs, your schedule)</span></summary>
+            <label class="grow">Budget spec (JSON)
+              <textarea id="budgetSpec" rows="12" spellcheck="false">{"arms": [{"name": "Experimental", "n_subjects": 225}], "visits": [{"name": "Screening + 6 cycles", "n_per_subject": 7, "procedures": [{"name": "labs", "unit_cost": 50, "count_per_visit": 1}, {"name": "imaging", "unit_cost": 400, "count_per_visit": 1}]}], "fixed_costs": [{"name": "startup", "amount": 15000}]}</textarea>
+            </label>
+          </details>
+          <button type="submit">Price budget</button>
+        </form>
+        <div id="budgetResult" class="results"><p class="muted">Not priced yet.</p></div>
       </section>
       <section id="tab-sites" aria-labelledby="tabbtn-sites" hidden>
         <form id="sitesForm" class="controls">
@@ -205,6 +235,29 @@
           <button type="submit">Screen records above</button>
         </form>
         <div id="signalsResult" class="results"><p class="muted">Not screened yet.</p></div>
+        <h3>PV shells</h3>
+        <p class="job"><strong>The job:</strong> turn screened safety work into submission-shaped output. E2B per SAE record above; DSUR shell from the database; risk register and reviewer dispositions from the screened signals below.</p>
+        <div class="controls">
+          <button id="dsurBtn" type="button">DSUR shell (this protocol)</button>
+          <button id="riskBtn" type="button">Risk register (screened signals)</button>
+        </div>
+        <div id="pvResult" class="results"><p class="muted">No shell built yet.</p></div>
+        <div id="reviewResult" class="results"><p class="muted">Screen signals above to review them here.</p></div>
+        <h3>SAE narratives & escalation</h3>
+        <p class="job"><strong>The job:</strong> draft the SAE narrative from the triaged record above for the medical writer to verify, and route overdue queries up the chain from the aging you already ran. Templates only — every [FILL] is yours.</p>
+        <div class="controls">
+          <button id="saeBtn" type="button">SAE narrative (first SAE triaged)</button>
+          <button id="escalBtn" type="button">Escalation chains (routed queries)</button>
+        </div>
+        <div id="saeResult" class="results"><p class="muted">Triage safety above first.</p></div>
+        <h3>Concomitant-med screen (live label)</h3>
+        <p class="muted">Pulls the suspect drug's warnings and interactions sections from the live FDA label, then flags your concomitant meds named there. A pointer to read the section — not an interaction claim.</p>
+        <form id="contraForm" class="controls">
+          <label>Suspect drug <input id="contraDrug" value="osimertinib" size="18"></label>
+          <label>Concomitant meds (comma-separated) <input id="contraMeds" value="warfarin, metformin" size="30" spellcheck="false"></label>
+          <button type="submit">Screen concomitants</button>
+        </form>
+        <div id="contraResult" class="results"><p class="muted">Not screened yet.</p></div>
       </section>
       <section id="tab-letters" aria-labelledby="tabbtn-letters" hidden>
         <h3>Letter library (your files)</h3>
@@ -219,6 +272,16 @@
           <button type="submit">Check against letters</button>
         </form>
         <div id="lettersCheckResult" class="results"><p class="muted">Not checked yet.</p></div>
+        <h3>Promotion copy check</h3>
+        <p class="job"><strong>The job:</strong> paste recruitment or site-facing copy and the approved indication. The app flags terms in the draft that are not in the indication, plus promotion language the FDA has cited in your letter library.</p>
+        <form id="promoForm" class="controls">
+          <label>Approved indication <input id="promoIndication" value="treatment of EGFR-mutant non-small cell lung cancer" size="52" spellcheck="false"></label>
+          <label class="grow">Draft copy
+            <textarea id="promoDraft" rows="3" spellcheck="false" placeholder="Ask your doctor about the most effective new treatment for lung cancer today"></textarea>
+          </label>
+          <button type="submit">Check copy</button>
+        </form>
+        <div id="promoResult" class="results"><p class="muted">Not checked yet.</p></div>
       </section>
       <section id="tab-diversity" aria-labelledby="tabbtn-diversity" hidden>
         <form id="diversityForm" class="controls">
@@ -242,6 +305,19 @@
         <div id="historyResult" class="results"><p class="muted">Running…</p></div>
         <h3>Screen-failure forensics</h3>
         <div id="forensicResult" class="results"><p class="muted">Running…</p></div>
+        <h3>Portfolio, DSMB & competition</h3>
+        <p class="job"><strong>The job:</strong> roll the database up to a protocol portfolio, draft the DSMB pack shell for this protocol, and check how many trials are recruiting against your indications on clinicaltrials.gov right now.</p>
+        <div class="controls">
+          <button id="portBtn" type="button">Portfolio rollup</button>
+          <button id="dsmbBtn" type="button">DSMB pack (this protocol)</button>
+        </div>
+        <div id="portResult" class="results"><p class="muted">Not rolled up yet.</p></div>
+        <form id="compForm" class="controls">
+          <label>Alert at ≥ <input id="compThreshold" type="number" value="20" min="1" size="6"></label>
+          <label>recruiting trials in <input id="compCountry" value="United States" size="16"></label>
+          <button type="submit">Check competition</button>
+        </form>
+        <div id="compResult" class="results"><p class="muted">Not checked yet — opt-in live lookup.</p></div>
       </section>
       <section id="tab-startup" aria-labelledby="tabbtn-startup" hidden>
         <form id="startupForm" class="controls">
@@ -254,6 +330,25 @@
           <button type="submit">Advance site</button>
         </form>
         <div id="startupResult" class="results"><p class="muted">Running…</p></div>
+        <h3>Activation milestones</h3>
+        <p class="job"><strong>The job:</strong> roll the pipeline up to counts, flagged sites, and the next action per flag — no new data entry.</p>
+        <div class="controls"><button id="milesBtn" type="button">Milestone rollup</button></div>
+        <div id="milesResult" class="results"><p class="muted">Not rolled up yet.</p></div>
+        <h3>SIV checklist</h3>
+        <p class="job"><strong>The job:</strong> one initiation checklist from the audited protocol criteria — run Protocol audit first, then build it here.</p>
+        <div class="controls"><button id="sivBtn" type="button">SIV checklist (audited protocol)</button></div>
+        <div id="sivResult" class="results"><p class="muted">Not built yet.</p></div>
+        <h3>Inspection readiness pack</h3>
+        <p class="job"><strong>The job:</strong> compile the BIMO-style exhibit list from the work already in the app — protocol on file, deviation count you enter, query and SAE counts from the database. Exhibits that live in the TMF stay marked [FILL].</p>
+        <form id="inspForm" class="controls">
+          <label>Protocol ID <input id="inspPid" value="PROT-TNX-001" size="18"></label>
+          <label>Deviations in scope <input id="inspDev" type="number" value="0" min="0" size="6"></label>
+          <label class="grow">Open items (one per line)
+            <textarea id="inspOpen" rows="2" spellcheck="false" placeholder="e.g. file week-8 monitoring report"></textarea>
+          </label>
+          <button type="submit">Build pack</button>
+        </form>
+        <div id="inspResult" class="results"><p class="muted">Not built yet.</p></div>
       </section>
       <section id="tab-monitoring" aria-labelledby="tabbtn-monitoring" hidden>
         <form id="monitoringForm" class="controls">
@@ -277,6 +372,22 @@
           <button type="submit">Screen deviations</button>
         </form>
         <div id="devResult" class="results"><p class="muted">Not screened yet.</p></div>
+        <h3>Monitoring plan</h3>
+        <p class="job"><strong>The job:</strong> one risk-based plan from the scored tiers above — SDV depth and visit cadence per site, escalation rule included.</p>
+        <div class="controls"><button id="planBtn" type="button">Monitoring plan (scored tiers)</button></div>
+        <div id="planResult" class="results"><p class="muted">Not planned yet — screen deviations first.</p></div>
+        <h3>Visit report</h3>
+        <p class="job"><strong>The job:</strong> turn the screened findings above into a monitoring visit report — counts by severity, finding lines, and the standard follow-up actions. No new data entry.</p>
+        <div class="controls"><button id="visitBtn" type="button">Visit report (screened findings)</button></div>
+        <div id="visitResult" class="results"><p class="muted">Screen deviations first.</p></div>
+        <h3>Deviation code & 5 whys</h3>
+        <p class="job"><strong>The job:</strong> map a deviation type to its CDISC-style category, then walk the 5-whys scaffold to a root cause with an effectiveness check for the CAPA. Answers come from the site, not the app.</p>
+        <form id="whyForm" class="controls">
+          <label>Deviation type <input id="whyType" value="missing-assessment" size="24"></label>
+          <label>Detail <input id="whyDetail" size="40" spellcheck="false" placeholder="optional — e.g. week-8 tumor assessment skipped"></label>
+          <button type="submit">Code & walk whys</button>
+        </form>
+        <div id="whyResult" class="results"><p class="muted">Not coded yet.</p></div>
       </section>
       <section id="tab-finder" aria-labelledby="tabbtn-finder" hidden>
         <form id="finderForm" class="controls">
@@ -334,9 +445,13 @@
           <label>Near <input id="matcherLocation" size="18" placeholder="optional — City, State"></label>
           <label class="check"><input id="matcherModel" type="checkbox"> Draft with my model endpoint</label>
           <button type="submit">Find matching trials</button>
+          <button id="watchBtn" type="button">Watch this search</button>
         </form>
         <p class="muted">Model drafts are off by default. Ticking the box sends the description and the trials' public criteria to your configured endpoint (TRIALNEXUS_MODEL_BASE_URL) — never your inbox files. Needs TRIALNEXUS_LLM_ENABLED=1 on the server.</p>
         <div id="matcherResult" class="results"><p class="muted">Not searched yet — describe the patient first.</p></div>
+        <h3>Watched searches (this browser only)</h3>
+        <p class="muted">Saved on this machine, never sent anywhere. Re-run anytime to catch newly posted trials.</p>
+        <div id="watchResult" class="results"><p class="muted">None yet.</p></div>
       </section>
       <footer class="foot">
         <p>TrialNexus OS — deterministic clinical-trials workspace. All analysis runs locally; nothing leaves this machine.</p>

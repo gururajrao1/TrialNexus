@@ -441,6 +441,118 @@ def fetch_drug_label(drug: str, timeout: float = 10.0) -> dict[str, Any]:
         return {**blank, "source": "offline-fallback"}
 
 
+def _section_text(items: Any) -> str:
+    xs = items if isinstance(items, list) else [items]
+    return " ".join(str(x) for x in xs if str(x).strip())[:4000]
+
+
+def _doc_names(doc: dict[str, Any]) -> str:
+    if not isinstance(doc, dict):
+        return ""
+    names: list[str] = []
+    openfda = doc.get("openfda", {})
+    if isinstance(openfda, dict):
+        for key in (
+            "brand_name",
+            "generic_name",
+            "manufacturer_name",
+            "substance_name",
+        ):
+            val = openfda.get(key, []) or []
+            names.extend(str(x) for x in (val if isinstance(val, list) else [val]))
+    spl = doc.get("spl_product_data_elements", []) or []
+    names.extend(str(x) for x in (spl if isinstance(spl, list) else [spl]))
+    return " ".join(names).lower()
+
+
+def _is_own_label(doc: Any, drug: str) -> bool:
+    """True when a label doc is the drug's own label, not a passing mention.
+
+    Combination-product labels mention other drugs in their text; the
+    product-data elements (or openfda names) are the identity anchor.
+    """
+    return isinstance(doc, dict) and drug.lower() in _doc_names(doc)
+
+
+def parse_label_sections(payload: dict[str, Any]) -> dict[str, str]:
+    """Warning sections from OpenFDA label docs. Pure.
+
+    Scans every returned doc and keeps the first one that actually carries
+    section text — the top hit is often a repackager label without any.
+    Callers pre-filter free-text results to the drug's own labels (see
+    ``fetch_label_sections``); unfiltered payloads may attribute a
+    combination product's mention instead.
+    """
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    for doc in results:
+        if not isinstance(doc, dict):
+            continue
+        warnings = _section_text(doc.get("warnings", []) or [])
+        inter = _section_text(doc.get("drug_interactions", []) or [])
+        boxed = _section_text(doc.get("boxed_warning", []) or [])[:600]
+        if warnings or inter or boxed:
+            return {
+                "warnings": warnings,
+                "drug_interactions": inter,
+                "boxed_warning": boxed,
+            }
+    return {"warnings": "", "drug_interactions": "", "boxed_warning": ""}
+
+
+def fetch_label_sections(drug: str, timeout: float = 10.0) -> dict[str, Any]:
+    """Warnings + interactions section text for a drug. Cached. Separate from
+    the label card so the card contract stays frozen."""
+    key = f"label-sections|{drug.lower()}"
+    cache, hit = _rw_cached(key)
+    if hit is not None:
+        return {**hit, "source": "cache"}
+    blank: dict[str, Any] = {
+        "drug": drug,
+        "warnings": "",
+        "drug_interactions": "",
+        "boxed_warning": "",
+    }
+    try:
+        import httpx  # core dep, imported lazily
+
+        def located(payload: dict[str, Any], own_only: bool) -> dict[str, str]:
+            results = payload.get("results", []) if isinstance(payload, dict) else []
+            if own_only:
+                results = [d for d in results if _is_own_label(d, drug)]
+            return parse_label_sections({"results": results})
+
+        result = dict(blank)
+        queries = [
+            (f'openfda.generic_name:"{drug.upper()}"', False),
+            (f'openfda.brand_name:"{drug.upper()}"', False),
+            # Salt forms and unindexed spellings miss the exact ladder;
+            # free-text filtered to the drug's own labels catches them.
+            (drug.upper(), True),
+        ]
+        for search, own_only in queries:
+            r = httpx.get(
+                OPENFDA_LABEL,
+                params={"search": search, "limit": "10"},
+                timeout=timeout,
+            )
+            if r.status_code == 404:
+                continue
+            r.raise_for_status()
+            parsed = located(r.json(), own_only)
+            if parsed["warnings"] or parsed["drug_interactions"]:
+                result = {"drug": drug, **parsed}
+                break
+        else:
+            return {**blank, "source": "offline-fallback"}
+        _rw_store(key, cache, result)
+        return {**result, "source": "live"}
+    except Exception:
+        hit = cache.get(key)
+        if isinstance(hit, dict):
+            return {**hit, "source": "cache"}
+        return {**blank, "source": "offline-fallback"}
+
+
 def parse_enforcement(payload: dict[str, Any]) -> dict[str, Any]:
     """Recall count + latest recall from an enforcement query. Pure."""
     total = 0

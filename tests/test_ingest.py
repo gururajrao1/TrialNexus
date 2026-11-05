@@ -17,6 +17,7 @@ from backend.agents.pubmed import (
     parse_esummary_xml,
 )
 from backend.agents.real_data import (
+    _is_own_label,
     fetch_clinvar,
     fetch_dailymed_label,
     fetch_drug_label,
@@ -33,6 +34,7 @@ from backend.agents.real_data import (
     parse_enforcement,
     parse_faers_total,
     parse_label_doc,
+    parse_label_sections,
     parse_live_studies,
     parse_mygene_hit,
     parse_myvariant_hits,
@@ -351,6 +353,57 @@ class RealWorldWave2Tests(unittest.TestCase):
         self.assertEqual(en["count"], 2)
         self.assertEqual(en["latest"]["classification"], "Class II")
         self.assertEqual(parse_enforcement({}), {"count": 0, "latest": {}})
+
+    def test_label_sections_parser_offline(self):
+        sec = parse_label_sections(
+            {
+                "results": [
+                    {
+                        "warnings": ["Do not use with warfarin.", "Avoid alcohol."],
+                        "drug_interactions": ["Warfarin: monitor INR."],
+                    }
+                ]
+            }
+        )
+        self.assertIn("warfarin", sec["warnings"].lower())
+        self.assertIn("INR", sec["drug_interactions"])
+        self.assertEqual(
+            parse_label_sections({}),
+            {"warnings": "", "drug_interactions": "", "boxed_warning": ""},
+        )
+        skip = parse_label_sections(
+            {
+                "results": [
+                    {"openfda": {"brand_name": ["REPACK"]}},
+                    {"warnings": ["Do not use with warfarin."]},
+                ]
+            }
+        )
+        self.assertIn("warfarin", skip["warnings"].lower())
+
+    def test_own_label_predicate(self):
+        self.assertTrue(
+            _is_own_label(
+                {"openfda": {}, "spl_product_data_elements": ["TAGRISSO osimertinib"]},
+                "osimertinib",
+            )
+        )
+        self.assertTrue(
+            _is_own_label(
+                {"openfda": {"brand_name": ["MOTRIN"]}, "warnings": ["x"]},
+                "motrin",
+            )
+        )
+        self.assertFalse(
+            _is_own_label(
+                {
+                    "openfda": {"brand_name": ["RYBREVANT"]},
+                    "warnings": ["osimertinib combination studied"],
+                },
+                "osimertinib",
+            )
+        )
+        self.assertFalse(_is_own_label({}, "osimertinib"))
 
     def test_studies_parser_offline(self):
         st = parse_live_studies(

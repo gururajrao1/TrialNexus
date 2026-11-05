@@ -66,6 +66,11 @@ breakdown, DCT-readiness matrix, criteria-design grades, adaptive-design
 spending table, consent readability + jargon hits, and an outcome benchmark
 against the live registry. Cross-links jump to site scoring, cohort
 matching, and safety triage for the same protocol.
+Same tab, lower down: **Sample size & budget** — size two proportions or
+two means with dropout inflation (defaults p1 0.5 vs p2 0.4 give 864
+total), check an NI margin against the 50%-preserved rule, and price a
+site budget from your own rate card (the app only multiplies your numbers;
+defaults price one 225-subject arm at screening + 6 cycles).
 
 ### 2. Site feasibility — "which sites will actually enroll?"
 
@@ -105,7 +110,16 @@ linked PMID cards), and an ROR/PRR signal screen that flags the liver
 cluster as watch. Each AE row carries temporality, attribution, and
 certainty enrichment. Same tab: CRF trace maps eCRF fields to criteria
 coverage, and the query-aging upload re-ages any query file by owner with
-SLA-breach rates.
+SLA-breach rates. New in this tab: E2B export on every SAE record,
+a DSUR shell compiled from the database ([FILL] marks prose you must write),
+a risk register ranked from screened signals, and reviewer dispositions
+(accept/refute/monitor) with an audit trail. Further down: **SAE
+narratives & escalation** — one click drafts the narrative for the first
+triaged SAE (template + [FILL], medical writer verifies) and routes the
+aged queries up the site → CRA → sponsor chain; and a
+**concomitant-med screen** that pulls the suspect drug's live FDA label
+sections (ibuprofen + aspirin fires a warnings pointer; osimertinib
+correctly fires nothing — its label speaks in drug-class terms).
 
 ### 5. Diversity plan — "can we defend our enrollment mix?"
 
@@ -121,13 +135,22 @@ Run Cohort matching and Safety triage once, then click
 **13 History & export → Refresh history**. Expect: persisted evaluation and
 query rows with timestamps, CSV download links for both tables, and a
 screen-failure forensics block ranking per-criterion fail/missing/trigger
-rates with top drivers over all stored runs.
+rates with top drivers over all stored runs. Same tab, lower down:
+**Portfolio, DSMB & competition** — a protocol rollup from the database,
+a one-click DSMB pack shell (enrollment + safety counts, [FILL] for the
+recommendation), and a live CT.gov competition check per indication
+(NSCLC currently shows ~500 recruiting trials in the US).
 
 ### 7. Study startup — "where is activation stuck?"
 
 Click **05 Study startup**. Expect: SITE-002 carrying the at-risk flag,
 SITE-001 clean. Advance SITE-003 to `activated` with a note and watch the
 pipeline update against contract/IRB/activation benchmarks.
+Same tab: milestone rollup (counts, flagged sites, next action per flag)
+and an SIV checklist built from the audited protocol criteria. Same tab:
+an **inspection readiness pack** — the BIMO-style exhibit list compiled
+from the database (protocol on file, deviation count you enter, query and
+SAE counts live) with TMF-only items honestly marked [FILL].
 
 ### 8. Monitoring — "which sites need a visit?"
 
@@ -138,6 +161,13 @@ flags and zero-enroll risk bands that separate the sites (low / high / low),
 each with a Cox-Stuart trend read on the run-rate. Same tab: deviation
 watch flags out-of-window visits, missing assessments, and consent
 violations, with a binomial rate signal calling out outlier sites.
+Same tab: a monitoring plan generated from the scored tiers (SDV depth and
+visit cadence per site, escalation rule included); KRIs now extend to
+consent/eligibility deviations and overdue queries when the feed carries them.
+Same tab: a **visit report** built from the screened findings (counts by
+severity plus the standard follow-up actions), a **deviation code & 5
+whys** box mapping types to CDISC-style categories with a root-cause
+scaffold and effectiveness check for the CAPA.
 
 ### 9. Find trials — "which trial fits this patient?"
 
@@ -182,11 +212,13 @@ an independent benchmark of the matcher, shipped in the product.
 ### 14. Warning letters — "has FDA already cited this failure?"
 
 Click **13 Warning letters** in the sidebar. Expect: your five saved letters indexed by firm, CMS number, and violation themes (CAPA, design control, promotion…), then a cross-check box — type a finding in plain words ("site closed a CAPA with no effectiveness check") and get the ranked FDA violations it resembles, with the cited text, the trial-world analogue, and a suggested deviation tier that links to the owning panel.
+Same tab: a **promotion copy check** — paste recruitment copy plus the approved indication and get off-indication terms plus FDA-cited promotion language flagged before anything goes out.
 
 ### 15. Trial matcher — "which real trials fit this patient?"
 
 Click **15 Trial matcher** (Live search group). Type a plain-English description ("66-year-old woman, EGFR-mutant lung adenocarcinoma, prior osimertinib…") plus an optional location. The app distills searchable terms (raw prose is rejected by the registry), backs off from specific to broad when a rung returns nothing, ranks recruiting trials from clinicaltrials.gov, and explains each top hit against its own criteria — "likely met / possible conflict / check with the team", always with quotes, never "eligible".
 Optional model layer, off by default: tick "Draft with my model endpoint" and the app also drafts note phrasing and a re-ranked order through your configured endpoint (TRIALNEXUS_MODEL_BASE_URL + TRIALNEXUS_LLM_ENABLED=1). Every draft is verified — verdict echo, verbatim quotes, permutation check — or discarded with a named warning; templates always decide.
+Each hit now shows a 3-fact "at a glance" snapshot, a nearby-sites travel check (text match on your city — no geocoding), a referral letter, and a yes/no/unknown screening checklist. Watched searches persist in your browser; re-run them to catch newly posted trials.
 Design debt to NIH TrialGPT (PMC11574183): four-label criterion verdicts (met / conflict / unknown / not-applicable), a synonym canonicalizer for its E2 error class (mutant = mutation…), exclusion-weighted trial scoring, and quoted explanations per criterion. Retrieval stays lexical (CT.gov `fields`-slimmed payloads, ~0.3KB vs ~75KB per study) instead of TrialGPT's LLM retrieval — the deterministic half of its retrieve → match → rank pipeline.
 
 ## 5-minute demo script (for explaining it to someone else)

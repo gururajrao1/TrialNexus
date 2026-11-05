@@ -480,6 +480,19 @@ def explain_criterion(
     return note
 
 
+def snapshot_lines(study: dict[str, Any]) -> list[str]:
+    """Three plain facts: what, what stage, where. No jargon added."""
+    conds = ", ".join(study.get("conditions", [])[:2]) or "condition area"
+    stage = " ".join(p for p in [study.get("phase", ""), study.get("status", "")] if p)
+    sites = study.get("locations", []) or []
+    return [
+        f"Tests a treatment for {conds}.",
+        f"Stage: {stage or 'not stated'}.",
+        f"{len(sites)} site(s) listed"
+        + (f", including {'; '.join(sites[:2])}." if sites else "."),
+    ]
+
+
 def _short(text: str, limit: int = 140) -> str:
     text = " ".join(text.split())
     return text if len(text) <= limit else text[:limit].rstrip() + "…"
@@ -496,6 +509,82 @@ def _join_quoted(words: list[str]) -> str:
     if len(quoted) > 1:
         return ", ".join(quoted[:-1]) + " and " + quoted[-1]
     return quoted[0] if quoted else "—"
+
+
+def travel_check(study: dict[str, Any], location: str) -> dict[str, Any]:
+    """Nearby-site check with no geocoding API: token overlap between the
+    patient's "City, State" string and each site label. Honest about what
+    it is — a text match, not kilometres."""
+    want = set(_tokens(location))
+    sites = [s for s in (study.get("locations", []) or []) if s]
+    nearby = [s for s in sites if want and (set(_tokens(s)) & want)]
+    if not location.strip():
+        note = f"{len(sites)} site(s) listed — add your city to check proximity."
+    elif nearby:
+        note = (
+            f"{len(nearby)} of {len(sites)} site(s) look nearby "
+            f"({'; '.join(nearby[:3])})."
+        )
+    else:
+        note = (
+            f"No listed site matches '{location.strip()}' — "
+            f"nearest of {len(sites)} listed, or ask about travel support."
+        )
+    return {"nearby": nearby, "n_sites": len(sites), "note": note}
+
+
+def referral_letter(
+    study: dict[str, Any],
+    description: str,
+    patient_label: str = "the patient",
+) -> dict[str, Any]:
+    """Plain-text referral packet: trial facts, why referred, what to bring."""
+    notes = study.get("notes", []) if isinstance(study.get("notes"), list) else []
+    met = [n for n in notes if n.get("verdict") == "likely met"]
+    check = [n for n in notes if n.get("verdict") == "check with the team"]
+    conflicts = [n for n in notes if n.get("verdict") == "possible conflict"]
+    lines = [
+        f"REFERRAL — {study.get('nct_id', '')} {study.get('title', '')}",
+        f"Phase: {study.get('phase', '—')} | Status: {study.get('status', '—')}",
+        f"Link: {study.get('url', '—')}",
+        "",
+        f"Patient: {(patient_label or 'the patient').strip()}",
+        f"Description: {(description or '').strip()[:500]}",
+        "",
+        "Why referred:",
+    ]
+    lines += [f"- {n.get('plain', '')}" for n in met[:4]] or ["- (match pending)"]
+    lines += ["", "Please verify before enrolling:"]
+    lines += [f"- {n.get('quote', '')}" for n in (check + conflicts)[:6]]
+    lines += [
+        "",
+        f"Sites: {'; '.join((study.get('locations', []) or [])[:6]) or '—'}",
+        "This letter is a matching aid, not an eligibility determination.",
+    ]
+    return {"letter": "\n".join(lines)}
+
+
+def screening_questions(study: dict[str, Any]) -> dict[str, Any]:
+    """Yes / No / Unknown checklist built from the trial's own criteria."""
+    parts = split_eligibility(study.get("eligibility", "") or "")
+    questions = []
+    for b in parts["inclusion"]:
+        questions.append(
+            {
+                "kind": "inclusion",
+                "question": f"Can you confirm this is true: {b}?",
+                "criterion": b[:MAX_EXCERPT],
+            }
+        )
+    for b in parts["exclusion"]:
+        questions.append(
+            {
+                "kind": "exclusion",
+                "question": f"Can you confirm NONE of this applies: {b}?",
+                "criterion": b[:MAX_EXCERPT],
+            }
+        )
+    return {"nct_id": study.get("nct_id", ""), "questions": questions}
 
 
 def _trial_text_blob(study: dict[str, Any]) -> str:
@@ -703,12 +792,15 @@ def match_trials(
     budget = [max(0, int(model_budget))]
     top = []
     for _, study in scored[: max(1, min(max_trials, MAX_TRIALS))]:
+        explained = match_description(
+            study, description, call_model=call_model, budget=budget
+        )
         top.append(
             {
                 **study,
-                **match_description(
-                    study, description, call_model=call_model, budget=budget
-                ),
+                **explained,
+                "snapshot": snapshot_lines(study),
+                "travel": travel_check(study, location),
             }
         )
     warnings: list[str] = []

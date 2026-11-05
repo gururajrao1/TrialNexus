@@ -1,4 +1,9 @@
 /* Core panel runners: audit, sites, cohort, safety. */
+export let lastTriage = [];
+export let lastSignals = [];
+export let lastAuditCriteria = null;
+export let lastAging = null;
+
 import { $, esc, fail, getJSON, postJSON } from "./api.js";
 import { COHORT_BADGE, SITE_BADGE, busy, critTable, evalTable, preJSON, table } from "./ui.js";
 import { demoBundles, prescreenEntries, selectedBundles, selectedExtBundles } from "./data.js";
@@ -10,6 +15,10 @@ export async function runAudit() {
   busy(el);
   try {
     const a = await postJSON("/api/audit-protocol/" + encodeURIComponent($("auditPid").value.trim()), {});
+    lastAuditCriteria = {
+      inclusion_criteria: a.inclusion_criteria || [],
+      exclusion_criteria: a.exclusion_criteria || [],
+    };
     const f = a.protocol_fragility_index;
     const band = f < 30 ? "Low" : (f < 60 ? "Moderate" : "High");
     const lit = Math.round(Math.min(100, f) / 10);
@@ -200,7 +209,8 @@ export async function runSafety() {
     const records = JSON.parse($("aeJson").value);
     const r = await postJSON("/api/triage-safety",
       { records, protocol_id: $("safetyPid").value.trim() || "UNASSIGNED" });
-    el.innerHTML = r.triaged_records.map((t) =>
+    lastTriage = r.triaged_records || [];
+    el.innerHTML = r.triaged_records.map((t, idx) =>
       '<div class="record"><h3>' + esc(t.discrepancy_id) +
       ' <span class="badge ' + (t.is_sae ? "b-sae" : "b-routine") + '">' + (t.is_sae ? "SAE" : "non-SAE") + "</span> " +
       (t.regulatory_alert_required
@@ -217,12 +227,16 @@ export async function runSafety() {
       "<details class='evidence'><summary>Site query</summary><p>To: <strong>" + esc(t.site_query.query_target) +
       "</strong></p><p>" + esc(t.site_query.query_text) + "</p><p class='muted'>Auto-close: " +
       esc(t.site_query.auto_close_condition) + "</p></details>" +
+      (t.is_sae ? "<p><button type='button' data-e2b='" + idx + "'>E2B export</button></p>" +
+        "<div class='extra' id='sx-" + idx + "'></div>" : "") +
       "</div>").join("");
+    wireE2bButtons(el);
     const pid = $("safetyPid").value.trim() || "UNASSIGNED";
     const [lk, ag] = await Promise.all([
       getJSON("/api/lock-readiness/" + encodeURIComponent(pid)),
       getJSON("/api/query-aging/" + encodeURIComponent(pid)),
     ]);
+    lastAging = ag;
     const rag = (s) => s === "green" ? "b-elig" : (s === "amber" ? "b-review" : "b-inelig");
     el.innerHTML += "<h3>Database-lock readiness " +
       '<span class="badge ' + rag(lk.overall) + '">' + esc(lk.overall) + "</span></h3>" +
@@ -284,8 +298,9 @@ export async function runAgingUpload() {
       el.innerHTML = "<p class='muted'>Upload a query file or paste records first.</p>";
       return;
     }
-    el.innerHTML = agingHTML(await postJSON("/api/query-aging",
-      { records: JSON.parse(txt) }));
+    lastAging = await postJSON("/api/query-aging",
+      { records: JSON.parse(txt) });
+    el.innerHTML = agingHTML(lastAging);
   } catch (err) { fail(el, err); }
 }
 
@@ -512,12 +527,257 @@ export async function runPubmed() {
   } catch (err) { fail(el, err); }
 }
 
+function wireE2bButtons(el) {
+  el.querySelectorAll("[data-e2b]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const idx = Number(btn.getAttribute("data-e2b"));
+      const record = lastTriage[idx];
+      const out = $("sx-" + idx);
+      if (!record || !out) return;
+      out.innerHTML = "<p class='muted'>Working…</p>";
+      try {
+        const r = await postJSON("/api/e2b", { record });
+        out.innerHTML = "<h3>E2B(R3)-shaped ICSR</h3><pre class='mono'>" +
+          esc(r.xml) + "</pre>";
+      } catch (err) { fail(out, err); }
+    });
+  });
+}
+
+export async function runDsur() {
+  const el = $("pvResult");
+  busy(el);
+  try {
+    const pid = ($("safetyPid") && $("safetyPid").value.trim()) || "UNASSIGNED";
+    const r = await getJSON("/api/dsur/" + encodeURIComponent(pid));
+    el.innerHTML = "<h3>DSUR shell — " + esc(r.protocol_id) + "</h3>" +
+      "<p class='muted'>" + esc(r.counts.safety_queries) + " queries (" +
+      esc(r.counts.open_queries) + " open, " + esc(r.counts.sae_queries) +
+      " SAE) · evaluations: " +
+      esc(JSON.stringify(r.counts.evaluations_by_status)) + "</p>" +
+      r.sections.map((s) => "<h3>" + esc(s.heading) + "</h3><p>" +
+        esc(s.body) + "</p>").join("");
+  } catch (err) { fail(el, err); }
+}
+
+export async function runRiskRegister() {
+  const el = $("pvResult");
+  busy(el);
+  try {
+    if (!lastSignals.length) {
+      el.innerHTML = "<p class='muted'>Screen signals above first.</p>";
+      return;
+    }
+    const r = await postJSON("/api/risk-register", { signals: lastSignals });
+    el.innerHTML = "<h3>Risk register</h3>" +
+      (r.risks.length ? table(r.risks.map((x) => ({
+        drug: x.drug, event: x.event, status: x.status, score: x.risk_score,
+        owner: x.owner, action: x.mitigation,
+      })), [["drug", "Drug"], ["event", "Event"], ["status", "Status"],
+            ["score", "Score"], ["owner", "Owner"], ["action", "Mitigation"]])
+        : "<p class='muted'>No risks from screened signals.</p>") +
+      "<p class='muted'>" + esc(r.note) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runPower() {
+  const el = $("powerResult");
+  busy(el);
+  try {
+    const num = (id) => parseFloat($(id).value);
+    const kind = $("powerKind").value;
+    const r = await postJSON("/api/power", kind === "means"
+      ? { kind, delta: num("powerDelta"), sd: num("powerSd"), alpha: num("powerAlpha"), power: num("powerPower"), dropout: num("powerDropout") }
+      : { kind, p1: num("powerP1"), p2: num("powerP2"), alpha: num("powerAlpha"), power: num("powerPower"), dropout: num("powerDropout") });
+    el.innerHTML = "<h3><span class='score'>" + esc(r.n_per_group_with_dropout) +
+      "</span> per group · " + esc(r.total) + " total</h3>" +
+      "<p class='muted'>" + esc(r.method) + " (raw n " + esc(r.n_per_group) +
+      " before dropout). " + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runNiMargin() {
+  const el = $("niResult");
+  busy(el);
+  try {
+    const r = await postJSON("/api/ni-margin", {
+      historical_effect: parseFloat($("niEffect").value),
+      margin: parseFloat($("niMargin").value),
+    });
+    const badge = r.pass ? "b-elig" : "b-inelig";
+    el.innerHTML = "<h3>Preserved <span class='score'>" +
+      esc((r.preserved_fraction * 100).toFixed(1)) + "%</span> " +
+      '<span class="badge ' + badge + '">' + (r.pass ? "meets 50% bar" : "below 50% bar") +
+      "</span></h3><p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runBudget() {
+  const el = $("budgetResult");
+  busy(el);
+  try {
+    const r = await postJSON("/api/budget", { spec: JSON.parse($("budgetSpec").value) });
+    el.innerHTML = "<h3>Grand total <span class='score'>$" +
+      esc(Number(r.grand_total).toLocaleString("en-US")) + "</span> " +
+      "<span class='muted'>($" + esc(Number(r.per_subject).toLocaleString("en-US")) +
+      " per subject · fixed $" + esc(Number(r.fixed_total).toLocaleString("en-US")) + ")</span></h3>" +
+      table(r.arms.map((a) => ({ arm: a.name, n: a.n_subjects, variable: "$" +
+        Number(a.variable_total).toLocaleString("en-US") })),
+        [["arm", "Arm"], ["n", "Subjects"], ["variable", "Variable"]]) +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runSaeNarrative() {
+  const el = $("saeResult");
+  busy(el);
+  try {
+    const sae = lastTriage.find((t) => t.is_sae);
+    if (!sae) {
+      el.innerHTML = "<p class='muted'>No SAE in the triaged records — triage safety above first.</p>";
+      return;
+    }
+    const r = await postJSON("/api/sae-narrative", { record: sae });
+    el.innerHTML = "<h3>SAE narrative — " + esc(sae.discrepancy_id) +
+      " <span class='muted'>(draft, verify before filing)</span></h3>" +
+      "<pre class='mono'>" + esc(r.narrative) + "</pre>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runContraScreen() {
+  const el = $("contraResult");
+  busy(el);
+  try {
+    const drug = $("contraDrug").value.trim();
+    const meds = $("contraMeds").value.split(",").map((s) => s.trim()).filter(Boolean);
+    if (!drug || !meds.length) {
+      el.innerHTML = "<p class='muted'>Enter a suspect drug and at least one concomitant med.</p>";
+      return;
+    }
+    el.innerHTML = "<p class='muted'>Pulling live label sections…</p>";
+    const r = await postJSON("/api/contra-screen", { drug, meds, fetch_live: true });
+    const src = r.label_source ? " <span class='chip'>" + esc(r.label_source) + " label</span>" : "";
+    el.innerHTML = "<h3>" + esc(r.hits.length) + " pointer(s) in " +
+      esc(r.checked.length) + " med(s)" + src + "</h3>" +
+      (r.hits.length ? table(r.hits.map((h) => ({ med: h.med, section: h.section })),
+        [["med", "Med"], ["section", "Read this section"]])
+        : "<p class='muted'>No concomitant named in the warning-class sections.</p>") +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runEscalation() {
+  const el = $("saeResult");
+  busy(el);
+  try {
+    if (!lastAging || !(lastAging.escalation_list || []).length) {
+      el.innerHTML = "<p class='muted'>Nothing routed yet — triage safety or route queries above first.</p>";
+      return;
+    }
+    const r = await postJSON("/api/escalation-chains", { aging: lastAging });
+    el.innerHTML = "<h3>" + esc(r.n_chains) + " escalation chain(s)</h3>" +
+      (r.chains.length ? table(r.chains.map((c) => ({
+        id: c.id, overdue: c.days_overdue + "d", level: c.level, rule: c.rule,
+      })), [["id", "Query"], ["overdue", "Overdue"], ["level", "Level"], ["rule", "Action"]])
+        : "<p class='muted'>Nothing overdue — all queries on-track.</p>") +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export function renderReview() {
+  const el = $("reviewResult");
+  if (!el) return;
+  if (!lastSignals.length) {
+    el.innerHTML = "<p class='muted'>Screen signals above to review them here.</p>";
+    return;
+  }
+  el.innerHTML = "<h3>Reviewer dispositions</h3>" + lastSignals.map((s, i) =>
+    "<p><strong>" + esc(s.drug_label || s.drug) + " — " + esc(s.event) + "</strong> " +
+    "<span class='muted'>" + esc(s.status) + "</span><br>" +
+    "<label>Decision <select id='rs-dec-" + i + "'>" +
+    "<option value=''>—</option><option>accept</option>" +
+    "<option>refute</option><option>monitor</option></select></label> " +
+    "<label>Note <input id='rs-note-" + i + "' size='30'></label></p>"
+  ).join("") +
+    "<p><button type='button' id='applyReviewBtn'>Apply review</button></p>" +
+    "<div id='reviewTrail'></div>";
+  const apply = $("applyReviewBtn");
+  if (apply) apply.addEventListener("click", applyReview);
+}
+
+export async function runMilestones() {
+  const el = $("milesResult");
+  busy(el);
+  try {
+    const r = await getJSON("/api/milestone-rollup");
+    el.innerHTML = "<h3>" + esc(r.n_sites) + " sites · " +
+      esc(r.pct_activated) + "% activated</h3>" +
+      "<p class='muted'>" + Object.entries(r.by_stage).map(([s, n]) =>
+        esc(s) + ": " + esc(n)).join(" · ") + "</p>" +
+      (r.flagged.length ? "<ul class='tight'>" + r.flagged.map((f) =>
+        "<li><strong>" + esc(f.site_id) + "</strong> (" + esc(f.stage) +
+        (f.days_in_stage !== "?" ? ", " + esc(f.days_in_stage) + "d" : "") +
+        "): " + esc((f.flags || []).join("; ")) +
+        "<br><span class='muted'>Next: " + esc(f.next_action) + "</span></li>"
+      ).join("") + "</ul>"
+        : "<p class='muted'>No flags.</p>") +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runSiv() {
+  const el = $("sivResult");
+  busy(el);
+  try {
+    if (!lastAuditCriteria) {
+      el.innerHTML = "<p class='muted'>Run Protocol audit first, then build the checklist here.</p>";
+      return;
+    }
+    const r = await postJSON("/api/siv-checklist",
+      { criteria: lastAuditCriteria });
+    el.innerHTML = "<h3>" + esc(r.n_items) + " items</h3><ol class='tight'>" +
+      r.items.map((it) => "<li>" + esc(it) + "</li>").join("") + "</ol>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function applyReview() {
+  const trail = $("reviewTrail");
+  const decisions = lastSignals.map((s, i) => {
+    const dec = $("rs-dec-" + i);
+    const note = $("rs-note-" + i);
+    return {
+      drug: s.drug, event: s.event,
+      decision: dec ? dec.value : "",
+      note: note ? note.value : "",
+    };
+  }).filter((d) => d.decision);
+  if (!decisions.length) {
+    if (trail) trail.innerHTML = "<p class='muted'>Pick at least one decision.</p>";
+    return;
+  }
+  if (trail) trail.innerHTML = "<p class='muted'>Working…</p>";
+  try {
+    const r = await postJSON("/api/signal-review",
+      { signals: lastSignals, decisions });
+    if (trail) trail.innerHTML =
+      "<p>" + esc(r.n_reviewed) + " reviewed.</p>" +
+      (r.trail.length ? "<ul class='tight'>" + r.trail.map((t) =>
+        "<li>" + esc(t.drug) + " — " + esc(t.event) + ": <strong>" +
+        esc(t.decision) + "</strong>" +
+        (t.note ? " — " + esc(t.note) : "") + "</li>").join("") + "</ul>" : "") +
+      (r.errors.length ? "<p class='muted'>Rejected: " +
+        esc(r.errors.join("; ")) + "</p>" : "");
+  } catch (err) { if (trail) fail(trail, err); }
+}
+
 export async function runSignals() {
   const el = $("signalsResult");
   busy(el);
   try {
     const records = JSON.parse($("aeJson").value);
     const r = await postJSON("/api/safety-signals", { records });
+    lastSignals = r.pairs || [];
+    renderReview();
     el.innerHTML = "<h3>" + esc(r.signals.length) + " signals, " + esc(r.watch.length) +
       " watch <span class='muted'>(" + esc(r.n_records) + " records, " +
       esc(r.n_drugs) + " drugs)</span></h3>" +

@@ -19,6 +19,9 @@ THRESHOLDS = {
     "deviations_month": {"watch": 2, "alert": 4},
     "sae_month": {"watch": 1, "alert": 2},
     "enrollment_gap_pct": {"watch": 20.0, "alert": 40.0},
+    "consent_deviation_pct": {"watch": 5.0, "alert": 10.0},
+    "eligibility_deviation_pct": {"watch": 5.0, "alert": 10.0},
+    "query_overdue_pct": {"watch": 25.0, "alert": 50.0},
 }
 DEFAULT_TARGETS = {"SITE-001": 3, "SITE-002": 3, "SITE-003": 3}
 
@@ -132,6 +135,36 @@ def site_kris(rows: list[dict[str, Any]], monthly_target: int) -> dict[str, Any]
             "detail": f"{enrolled}/{monthly_target} enrolled",
         },
     ]
+    # Extended KRIs (TransCelerate-style): only evaluated when the feed
+    # carries the keys, so old metric rows are unaffected.
+    if "consent_deviations" in latest:
+        cons = int(latest.get("consent_deviations", 0) or 0)
+        kris.append(
+            {
+                "kri": "consent_deviation_pct",
+                "value": round(100.0 * cons / screened, 1),
+                "detail": f"{cons}/{screened} consent deviations",
+            }
+        )
+    if "eligibility_deviations" in latest:
+        elig = int(latest.get("eligibility_deviations", 0) or 0)
+        kris.append(
+            {
+                "kri": "eligibility_deviation_pct",
+                "value": round(100.0 * elig / screened, 1),
+                "detail": f"{elig}/{screened} eligibility deviations",
+            }
+        )
+    if "open_queries" in latest and "overdue_queries" in latest:
+        over = int(latest.get("overdue_queries", 0) or 0)
+        total_q = int(latest.get("open_queries", 0) or 0)
+        kris.append(
+            {
+                "kri": "query_overdue_pct",
+                "value": round(100.0 * over / max(1, total_q), 1),
+                "detail": f"{over}/{total_q} queries overdue",
+            }
+        )
     for k in kris:
         k["status"] = _level(float(k["value"]), k["kri"])
     worst = "ok"
@@ -172,6 +205,8 @@ def portfolio_kris(
         "thresholds": THRESHOLDS,
         "note": (
             "Thresholds encode industry tolerance limits (screen fail 30/40%, "
-            "queries/pt 2/3, deviations 2/4, SAE 1/2, enrollment gap 20/40%)."
+            "queries/pt 2/3, deviations 2/4, SAE 1/2, enrollment gap 20/40%; "
+            "extended: consent/eligibility deviations 5/10%, overdue queries "
+            "25/50% — evaluated only when the feed carries those keys)."
         ),
     }

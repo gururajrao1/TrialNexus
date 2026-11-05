@@ -136,6 +136,8 @@ export async function runFinder() {
   } catch (err) { fail(el, err); }
 }
 
+export let lastMatcherTrials = [];
+
 export async function runTrialMatch() {
   const el = $("matcherResult");
   busy(el);
@@ -153,6 +155,7 @@ export async function runTrialMatch() {
       model_explain: useModel,
       model_rerank: useModel,
     });
+    lastMatcherTrials = r.trials || [];
     if (!r.trials.length) {
       el.innerHTML = "<p class='muted'>No recruiting trials found (" +
         esc(r.source) + " search over " + esc(r.total_recruiting) +
@@ -179,15 +182,122 @@ export async function runTrialMatch() {
         " — " + esc(t.phase) + " — " + esc(t.status) +
         (t.locations.length ? " — " + esc(t.locations.slice(0, 3).join("; ")) : "") + "</p>" +
         "<p>" + esc(t.summary) + "</p>" +
+        ((t.snapshot || []).length ? "<ul class='tight'>" +
+          t.snapshot.map((s) => "<li>" + esc(s) + "</li>").join("") + "</ul>" : "") +
         (t.rerank_reason ? "<p><strong>Why this rank:</strong> " +
           esc(t.rerank_reason) + "</p>" : "") +
+        "<p class='muted'>" + esc(((t.travel || {}).note) || "") + "</p>" +
         "<ul class='tight'>" + t.notes.map((n) =>
           "<li><strong>" + esc(n.verdict) + ":</strong> " + esc(n.plain) +
           (n.draft ? " <span class='chip'>AI draft</span>" : "") +
           " <span class='muted'>“" + esc(n.quote) + "”</span></li>").join("") +
-        "</ul></div>").join("") +
+        "</ul>" +
+        "<p><button type='button' data-mact='referral' data-idx='" + i + "'>Referral letter</button> " +
+        "<button type='button' data-mact='questions' data-idx='" + i + "'>Screening questions</button></p>" +
+        "<div class='extra' id='mx-" + i + "'></div>" +
+        "</div>").join("") +
       "<p class='muted'>" + esc(r.disclaimer) + "</p>";
+    wireMatcherActions(el, description);
   } catch (err) { fail(el, err); }
+}
+
+const WATCH_KEY = "tnx-watch";
+
+function getWatch() {
+  try {
+    const list = JSON.parse(localStorage.getItem(WATCH_KEY));
+    return Array.isArray(list) ? list : [];
+  } catch (e) { return []; }
+}
+
+function setWatch(list) {
+  try { localStorage.setItem(WATCH_KEY, JSON.stringify(list)); } catch (e) {}
+}
+
+export function renderWatchlist() {
+  const el = $("watchResult");
+  if (!el) return;
+  const list = getWatch();
+  if (!list.length) {
+    el.innerHTML = "<p class='muted'>None yet — describe a patient and watch the search.</p>";
+    return;
+  }
+  el.innerHTML = "<ul class='tight'>" + list.map((w, i) =>
+    "<li>" + esc(w.description) +
+    (w.last_total != null ? " <span class='muted'>— last check: " +
+      esc(w.last_total) + " matches" +
+      (w.last_check ? " on " + esc(w.last_check) : "") + "</span>" : "") +
+    " <button type='button' data-wact='run' data-widx='" + i + "'>Run</button>" +
+    " <button type='button' data-wact='drop' data-widx='" + i + "'>Remove</button></li>"
+  ).join("") + "</ul>";
+  el.querySelectorAll("[data-wact]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const idx = Number(btn.getAttribute("data-widx"));
+      const items = getWatch();
+      const entry = items[idx];
+      if (!entry) return;
+      if (btn.getAttribute("data-wact") === "drop") {
+        items.splice(idx, 1);
+        setWatch(items);
+        renderWatchlist();
+        return;
+      }
+      $("matcherText").value = entry.description || "";
+      $("matcherCondition").value = entry.condition || "";
+      $("matcherLocation").value = entry.location || "";
+      await runTrialMatch();
+      const fresh = getWatch();
+      if (fresh[idx]) {
+        fresh[idx].last_total = lastMatcherTrials.length;
+        fresh[idx].last_check = new Date().toISOString().slice(0, 10);
+        setWatch(fresh);
+        renderWatchlist();
+      }
+    });
+  });
+}
+
+export function watchCurrentSearch() {
+  const description = $("matcherText").value.trim();
+  if (!description) return;
+  const list = getWatch();
+  if (!list.some((w) => w.description === description)) {
+    list.push({
+      description,
+      condition: $("matcherCondition").value.trim(),
+      location: $("matcherLocation").value.trim(),
+      last_total: null,
+      last_check: null,
+    });
+    setWatch(list);
+  }
+  renderWatchlist();
+}
+
+function wireMatcherActions(el, description) {
+  el.querySelectorAll("[data-mact]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const idx = Number(btn.getAttribute("data-idx"));
+      const trial = lastMatcherTrials[idx];
+      const out = $("mx-" + idx);
+      if (!trial || !out) return;
+      out.innerHTML = "<p class='muted'>Working…</p>";
+      try {
+        if (btn.getAttribute("data-mact") === "referral") {
+          const r = await postJSON("/api/trial-referral",
+            { trial, description, patient_label: "the patient" });
+          out.innerHTML = "<h3>Referral letter</h3><pre class='mono'>" +
+            esc(r.letter) + "</pre>";
+        } else {
+          const r = await postJSON("/api/trial-questions", { trial });
+          out.innerHTML = "<h3>Screening checklist</h3><ul class='tight'>" +
+            r.questions.map((q) =>
+              "<li><strong>" + esc(q.kind) + ":</strong> " + esc(q.question) +
+              "</li>").join("") + "</ul>";
+        }
+      } catch (err) { fail(out, err); }
+    });
+  });
 }
 
 export async function runExternal() {
@@ -233,6 +343,8 @@ export async function runForensics() {
 }
 
 
+export let lastMonitoringTiers = [];
+
 export async function runDeviation() {
   const el = $("devResult");
   busy(el);
@@ -245,6 +357,12 @@ export async function runDeviation() {
     const w = parseInt($("devWindow").value, 10) || 0;
     const r = await postJSON("/api/deviation-watch",
       { records: JSON.parse(txt), window_days: w });
+    lastDevFindings = r.findings || [];
+    lastDevTiers = r.by_site || [];
+    lastMonitoringTiers = (r.by_site || []).map((s) => ({
+      site_id: s.site_id, tier: s.tier,
+      reason: (s.n_findings || 0) + " finding(s) this screen",
+    }));
     el.innerHTML = "<h3>" + esc(r.summary.n_findings) + " findings over " +
       esc(r.summary.n_records) + " visits " +
       '<span class="chip">' + esc(r.summary.n_sites_flagged) + " sites flagged</span></h3>" +
@@ -273,7 +391,27 @@ export async function runDeviation() {
   } catch (err) { fail(el, err); }
 }
 
+export async function runMonitoringPlan() {
+  const el = $("planResult");
+  busy(el);
+  try {
+    if (!lastMonitoringTiers.length) {
+      el.innerHTML = "<p class='muted'>Screen deviations above first — the plan is built from scored tiers.</p>";
+      return;
+    }
+    const pid = ($("globalPid") && $("globalPid").textContent.trim()) || "UNASSIGNED";
+    const r = await postJSON("/api/monitoring-plan", {
+      protocol: { id: pid },
+      site_tiers: lastMonitoringTiers,
+    });
+    el.innerHTML = "<pre class='mono'>" + esc(r.markdown) + "</pre>";
+  } catch (err) { fail(el, err); }
+}
+
 const TIER_BADGE = { critical: "b-inelig", major: "b-review", minor: "b-elig" };
+
+export let lastDevFindings = [];
+export let lastDevTiers = [];
 
 export async function runLetters() {
   const el = $("lettersResult");
@@ -328,5 +466,137 @@ export async function runLettersCheck() {
       ((m.panels || []).length ? "<p><button type='button' data-goto='" + esc(m.panels[0]) +
         "'>Open the owning panel</button></p>" : "")
     ).join("");
+  } catch (err) { fail(el, err); }
+}
+
+export async function runPromoCheck() {
+  const el = $("promoResult");
+  busy(el);
+  try {
+    const draft = $("promoDraft").value.trim();
+    if (!draft) {
+      el.innerHTML = "<p class='muted'>Paste the draft copy first.</p>";
+      return;
+    }
+    const r = await postJSON("/api/promo-check",
+      { draft, indication: $("promoIndication").value });
+    const badge = r.verdict === "no lexical flags" ? "b-elig" : "b-review";
+    el.innerHTML = "<h3>Verdict: " + esc(r.verdict) + ' <span class="badge ' + badge + '">' +
+      esc(r.flags.length) + " flag(s)</span></h3>" +
+      (r.flags.length ? "<ul class='tight'>" + r.flags.map((f) =>
+        "<li><strong>" + esc(f.kind) + ":</strong> " + esc(f.text) +
+        "<br><span class='muted'>" + esc(f.note) + "</span></li>").join("") + "</ul>"
+        : "<p class='muted'>Nothing in the draft falls outside the indication.</p>") +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runVisitReport() {
+  const el = $("visitResult");
+  busy(el);
+  try {
+    if (!lastDevFindings.length) {
+      el.innerHTML = "<p class='muted'>Screen deviations above first — the report is built from screened findings.</p>";
+      return;
+    }
+    const tier = (lastDevTiers[0] && { site_id: lastDevTiers[0].site_id, tier: lastDevTiers[0].tier }) || null;
+    const r = await postJSON("/api/visit-report",
+      { findings: lastDevFindings, site_tier: tier });
+    el.innerHTML = "<h3>" + esc(r.n_findings) + " finding(s)" +
+      (tier ? " — " + esc(tier.site_id) + " tier " + esc(tier.tier) : "") + "</h3>" +
+      "<pre class='mono'>" + esc(r.markdown) + "</pre>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runCodeWhys() {
+  const el = $("whyResult");
+  busy(el);
+  try {
+    const t = $("whyType").value.trim();
+    const detail = $("whyDetail").value.trim();
+    if (!t) {
+      el.innerHTML = "<p class='muted'>Enter a deviation type first.</p>";
+      return;
+    }
+    const [code, whys] = await Promise.all([
+      postJSON("/api/code-deviation", { deviation_type: t, detail }),
+      postJSON("/api/five-whys", { deviation_type: t, detail }),
+    ]);
+    el.innerHTML = "<h3>" + esc(code.type) + " → <span class='mono'>" +
+      esc(code.cdisc_code) + "</span> " + esc(code.cdisc_label) + "</h3>" +
+      "<p class='muted'>" + esc(code.basis) + "</p><ol class='tight'>" +
+      whys.questions.map((q) => "<li>" + esc(q) + "</li>").join("") + "</ol>" +
+      "<p><strong>Effectiveness check:</strong> " + esc(whys.effectiveness_check) + "</p>" +
+      "<p class='muted'>" + esc(whys.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runInspection() {
+  const el = $("inspResult");
+  busy(el);
+  try {
+    const r = await postJSON("/api/inspection-pack", {
+      protocol_id: $("inspPid").value.trim(),
+      n_deviations: parseInt($("inspDev").value, 10) || 0,
+      open_items: $("inspOpen").value.split("\n").map((s) => s.trim()).filter(Boolean),
+    });
+    const ready = r.ready ? "b-elig" : "b-review";
+    el.innerHTML = "<h3>Inspection pack — " + esc(r.protocol_id) +
+      ' <span class="badge ' + ready + '">' + (r.ready ? "compiled exhibits ready" : "TMF items open") +
+      "</span></h3>" +
+      table(r.exhibits.map((e) => ({ exhibit: e.exhibit, status: e.status, detail: e.detail || "—" })),
+        [["exhibit", "Exhibit"], ["status", "Status"], ["detail", "Detail"]]) +
+      (r.open_items.length ? "<h3>Open items</h3><ul class='tight'>" +
+        r.open_items.map((o) => "<li>" + esc(o) + "</li>").join("") + "</ul>" : "") +
+      "<p class='muted'>" + esc(r.basis) + "</p>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runPortfolio() {
+  const el = $("portResult");
+  busy(el);
+  try {
+    const r = await getJSON("/api/portfolio");
+    el.innerHTML = "<h3>" + esc(r.n_protocols) + " protocol(s)</h3>" +
+      (r.protocols.length ? table(r.protocols.map((p) => ({
+        pid: p.protocol_id, title: (p.title || "").slice(0, 60), phase: p.phase,
+        queries: p.queries + " (" + p.open_queries + " open)", evals: p.evaluations,
+      })), [["pid", "Protocol"], ["title", "Title"], ["phase", "Phase"],
+        ["queries", "Queries"], ["evals", "Evaluations"]])
+        : "<p class='muted'>No protocols in the database yet.</p>");
+  } catch (err) { fail(el, err); }
+}
+
+export async function runDsmb() {
+  const el = $("portResult");
+  busy(el);
+  try {
+    const pid = ($("historyPid") && $("historyPid").value.trim()) || "PROT-TNX-001";
+    const r = await postJSON("/api/dsmb-pack", { protocol_id: pid });
+    el.innerHTML = "<h3>DSMB pack — " + esc(r.protocol_id) +
+      " <span class='muted'>(" + esc(r.n_sites) + " sites, " +
+      esc(r.n_activated) + " activated)</span></h3>" +
+      "<pre class='mono'>" + esc(r.markdown) + "</pre>";
+  } catch (err) { fail(el, err); }
+}
+
+export async function runCompetition() {
+  const el = $("compResult");
+  busy(el);
+  try {
+    el.innerHTML = "<p class='muted'>Checking live registry…</p>";
+    const r = await postJSON("/api/competition-alerts", {
+      threshold: parseInt($("compThreshold").value, 10) || 20,
+      country: $("compCountry").value.trim() || "United States",
+    });
+    el.innerHTML = r.alerts.length
+      ? "<h3>" + esc(r.alerts.length) + " alert(s) at ≥" + esc(r.threshold) +
+        " recruiting <span class='chip'>" + esc(r.country) + "</span></h3>" +
+        table(r.alerts.map((a) => ({
+          pid: a.protocol_id, ind: (a.indication || "").slice(0, 60),
+          n: a.recruiting_competitors, src: a.source,
+        })), [["pid", "Protocol"], ["ind", "Indication"],
+          ["n", "Recruiting"], ["src", "Source"]])
+      : "<p class='muted'>No indication at or above the threshold — clear field.</p>";
   } catch (err) { fail(el, err); }
 }

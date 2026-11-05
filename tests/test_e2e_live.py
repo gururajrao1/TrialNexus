@@ -592,12 +592,322 @@ def main():
         and isinstance(inv["bundles"], list),
         sorted(inv["slots"]),
     )
+    tm = post(
+        "/api/trial-match",
+        {"description": "EGFR lung cancer", "max_trials": 2},
+        timeout=90,
+    )
+    check(
+        "trial matcher returns explained live trials",
+        isinstance(tm.get("trials"), list)
+        and (len(tm["trials"]) > 0 or tm["source"] == "offline-fallback"),
+        (tm["source"], tm.get("searched_terms", "")),
+    )
+    if tm.get("trials"):
+        first = tm["trials"][0]
+        check(
+            "matcher trial carries snapshot and travel",
+            isinstance(first.get("snapshot"), list)
+            and isinstance(first.get("travel", {}).get("note", ""), str),
+            first.get("nct_id", "?"),
+        )
+        ref = post(
+            "/api/trial-referral", {"trial": first, "description": "EGFR lung cancer"}
+        )
+        check(
+            "referral letter built from matched trial",
+            first.get("nct_id", "") in ref.get("letter", ""),
+            len(ref.get("letter", "")),
+        )
+        qs = post("/api/trial-questions", {"trial": first})
+        check(
+            "screening questions built from criteria",
+            isinstance(qs.get("questions"), list),
+            len(qs.get("questions", [])),
+        )
+    eb = post(
+        "/api/e2b",
+        {
+            "record": {
+                "discrepancy_id": "E2E-1",
+                "patient_id": "P1",
+                "suspect_drug": "osimertinib",
+                "reported_term": "rash",
+                "severity_grade": "Grade 2",
+                "is_sae": False,
+                "meddra_classification": {"soc": "Skin", "preferred_term": "Rash"},
+            }
+        },
+    )
+    check(
+        "E2B export renders ICSR XML",
+        "<medicinalproduct>osimertinib</medicinalproduct>" in eb.get("xml", ""),
+        eb.get("message_id"),
+    )
+    du = json.loads(get("/api/dsur/PROT-TNX-001")[1])
+    check(
+        "DSUR shell counts database queries",
+        isinstance(du.get("sections"), list)
+        and any("[FILL]" in s.get("body", "") for s in du["sections"]),
+        du.get("counts"),
+    )
+    rr = post(
+        "/api/risk-register",
+        {
+            "signals": [
+                {
+                    "drug": "a",
+                    "drug_label": "a",
+                    "event": "e",
+                    "status": "signal",
+                    "n": 3,
+                    "prr": 4.0,
+                }
+            ]
+        },
+    )
+    check(
+        "risk register ranks a signal first",
+        rr.get("risks", [{}])[0].get("drug") == "a"
+        and rr["risks"][0].get("owner") == "Safety physician",
+        rr["risks"][0].get("risk_score"),
+    )
+    rv = post(
+        "/api/signal-review",
+        {
+            "signals": [{"drug": "a", "event": "e", "status": "signal"}],
+            "decisions": [
+                {"drug": "a", "event": "e", "decision": "monitor", "note": "watch"}
+            ],
+        },
+    )
+    check(
+        "signal review records dispositions",
+        rv.get("n_reviewed") == 1 and rv.get("errors") == [],
+        rv.get("trail"),
+    )
+    mp = post(
+        "/api/monitoring-plan",
+        {
+            "protocol": {"id": "PROT-TNX-001"},
+            "site_tiers": [{"site_id": "S1", "tier": "critical"}],
+        },
+    )
+    check(
+        "monitoring plan maps tiers to SDV depth",
+        "100%" in mp.get("markdown", ""),
+        len(mp.get("markdown", "")),
+    )
+    sv = post(
+        "/api/siv-checklist",
+        {
+            "criteria": {
+                "inclusion_criteria": [{"raw_text": "Age 18 or older"}],
+                "exclusion_criteria": [],
+            }
+        },
+    )
+    check(
+        "SIV checklist enumerates items",
+        any("Age 18" in i for i in sv.get("items", [])),
+        sv.get("n_items"),
+    )
+    mr = json.loads(get("/api/milestone-rollup")[1])
+    check(
+        "milestone rollup counts pipeline stages",
+        isinstance(mr.get("by_stage"), dict),
+        mr.get("pct_activated"),
+    )
     rm = delete("/api/protocols/" + pa["protocol_id"])
     snap2 = json.loads(get("/api/snapshot")[1])
     check(
         "PDF protocol deletes cleanly",
         rm["deleted"] is True and snap2["protocols"] == 3,
         snap2["protocols"],
+    )
+    pw = post(
+        "/api/power",
+        {
+            "kind": "proportions",
+            "p1": 0.5,
+            "p2": 0.4,
+            "alpha": 0.05,
+            "power": 0.8,
+            "dropout": 0.1,
+        },
+    )
+    check(
+        "power sizes two proportions with dropout",
+        pw.get("n_per_group_with_dropout", 0) >= pw.get("n_per_group", 1) > 0,
+        pw.get("total"),
+    )
+    ni = post("/api/ni-margin", {"historical_effect": 0.3, "margin": 0.1})
+    check(
+        "NI margin preserves over half of M1",
+        ni.get("pass") is True and ni.get("preserved_fraction", 0) > 0.5,
+        ni.get("preserved_fraction"),
+    )
+    bd = post(
+        "/api/budget",
+        {
+            "spec": {
+                "arms": [{"name": "A", "n_subjects": 10}],
+                "visits": [
+                    {
+                        "name": "V1",
+                        "n_per_subject": 2,
+                        "procedures": [
+                            {"name": "labs", "unit_cost": 50, "count_per_visit": 1}
+                        ],
+                    }
+                ],
+                "fixed_costs": [{"name": "setup", "amount": 500}],
+            }
+        },
+    )
+    check(
+        "budget multiplies user rates only",
+        bd.get("grand_total") == 1500.0 and bd.get("per_subject") == 100.0,
+        bd.get("grand_total"),
+    )
+    sn = post(
+        "/api/sae-narrative",
+        {
+            "record": {
+                "discrepancy_id": "E2E-1",
+                "patient_id": "P1",
+                "suspect_drug": "osimertinib",
+                "reported_term": "rash",
+                "severity_grade": "Grade 2",
+                "is_sae": True,
+                "meddra_classification": {"soc": "Skin", "preferred_term": "Rash"},
+            }
+        },
+    )
+    check(
+        "SAE narrative drafts from triaged fields",
+        "SERIOUS ADVERSE EVENT NARRATIVE" in sn.get("narrative", "")
+        and "[FILL]" in sn.get("narrative", ""),
+        len(sn.get("narrative", "")),
+    )
+    cs = post(
+        "/api/contra-screen",
+        {
+            "label_sections": {"warnings": "Do not use with warfarin."},
+            "meds": ["warfarin", "metformin"],
+        },
+    )
+    check(
+        "contra screen points at the warning section",
+        len(cs.get("hits", [])) == 1 and cs["hits"][0]["med"] == "warfarin",
+        cs.get("hits"),
+    )
+    live = post(
+        "/api/contra-screen",
+        {"drug": "ibuprofen", "meds": ["aspirin"], "fetch_live": True},
+    )
+    check(
+        "contra fetch_live reports an honest label source",
+        live.get("label_source") in ("live", "cache", "offline-fallback")
+        and isinstance(live.get("hits"), list),
+        live.get("label_source"),
+    )
+    ec = post(
+        "/api/escalation-chains",
+        {
+            "aging": {
+                "escalation_list": [
+                    {"id": "Q-1", "days_overdue": 65},
+                    {"id": "Q-2", "days_overdue": 5},
+                ]
+            }
+        },
+    )
+    check(
+        "escalation chains route by overdue band",
+        ec.get("n_chains") == 2
+        and {c["id"]: c["level"] for c in ec["chains"]}
+        == {"Q-1": "sponsor+capa", "Q-2": "site"},
+        ec.get("n_chains"),
+    )
+    pc = post(
+        "/api/promo-check",
+        {
+            "draft": "the most effective new cure for lung cancer today",
+            "indication": "treatment of EGFR-mutant non-small cell lung cancer",
+        },
+    )
+    check(
+        "promo check flags off-indication terms",
+        pc.get("verdict") == "needs review" and len(pc.get("flags", [])) > 0,
+        pc.get("flags"),
+    )
+    vr = post(
+        "/api/visit-report",
+        {
+            "findings": [
+                {
+                    "site_id": "S1",
+                    "subject": "a",
+                    "visit": "V2",
+                    "type": "out-of-window",
+                    "severity": "major",
+                    "detail": "9 days late",
+                }
+            ],
+            "site_tier": {"site_id": "S1", "tier": "watch"},
+        },
+    )
+    check(
+        "visit report counts findings by severity",
+        vr.get("n_findings") == 1
+        and "Monitoring visit report" in vr.get("markdown", ""),
+        vr.get("by_severity"),
+    )
+    cd = post(
+        "/api/code-deviation",
+        {"deviation_type": "consent-violation", "detail": "re-consent missed"},
+    )
+    check(
+        "CDISC map codes consent violations",
+        cd.get("cdisc_code") == "C158839",
+        cd.get("cdisc_label"),
+    )
+    fw = post(
+        "/api/five-whys",
+        {"deviation_type": "missing-assessment", "detail": "week-8 scan skipped"},
+    )
+    check(
+        "5-whys scaffold asks five with an effectiveness check",
+        len(fw.get("questions", [])) == 5 and "effectiveness_check" in fw,
+        len(fw.get("questions", [])),
+    )
+    pf = json.loads(get("/api/portfolio")[1])
+    check(
+        "portfolio rolls up seeded protocols",
+        pf.get("n_protocols", 0) >= 1
+        and all("protocol_id" in p for p in pf.get("protocols", [])),
+        pf.get("n_protocols"),
+    )
+    ds = post("/api/dsmb-pack", {"protocol_id": "PROT-TNX-001"})
+    check(
+        "DSMB pack shells enrollment and safety",
+        "DSMB report pack" in ds.get("markdown", "") and ds.get("n_sites", 0) >= 1,
+        ds.get("protocol_id"),
+    )
+    ip = post(
+        "/api/inspection-pack",
+        {
+            "protocol_id": "PROT-TNX-001",
+            "n_deviations": 2,
+            "open_items": ["file week-8 report"],
+        },
+    )
+    check(
+        "inspection pack compiles exhibits with TMF fills",
+        len(ip.get("exhibits", [])) == 8
+        and ip.get("open_items") == ["file week-8 report"],
+        len(ip.get("exhibits", [])),
     )
 
     print(f"FAILURES: {len(FAILURES)}")

@@ -278,6 +278,64 @@ def parse_letter(text: str, source: str) -> dict[str, Any]:
     }
 
 
+def check_promo_draft(draft: str, indication: str = "") -> dict[str, Any]:
+    """Screen recruitment/promotion copy against the approved indication.
+
+    Flags condition terms in the draft that do not appear in the indication
+    (possible off-label promotion) plus any promotion-theme language the
+    FDA has cited (superiority claims, misleading efficacy). Lexical only —
+    a flag is a prompt to check, never a violation finding.
+    """
+    draft_low = (draft or "").lower()
+    ind_terms = set(_tokens(indication or ""))
+    draft_terms = set(_tokens(draft or ""))
+    generic = {
+        "drug",
+        "treatment",
+        "treat",
+        "patients",
+        "patient",
+        "trial",
+        "study",
+        "clinical",
+        "new",
+        "now",
+        "ask",
+        "doctor",
+        "today",
+    }
+    off_label = sorted(draft_terms - ind_terms - generic)
+    promo_hits = sorted({k for k in THEMES["promotion"]["keywords"] if k in draft_low})
+    flags = []
+    for t in off_label[:8]:
+        flags.append(
+            {
+                "kind": "off-indication term",
+                "text": t,
+                "note": f"'{t}' appears in the draft but not in the "
+                "approved indication — verify before use.",
+            }
+        )
+    for k in promo_hits:
+        flags.append(
+            {
+                "kind": "promotion language",
+                "text": k,
+                "note": "FDA has cited this language class in promotion "
+                "warning letters — verify the claim is fair-balance.",
+            }
+        )
+    verdict = "needs review" if flags else "no lexical flags"
+    return {
+        "verdict": verdict,
+        "flags": flags,
+        "basis": (
+            "Token overlap vs the indication plus the promotion-theme "
+            "keyword set behind tab 13. Human review decides."
+        ),
+    }
+
+
 def load_letters(inbox_dir: Path | None = None) -> list[dict[str, Any]]:
     """Load and parse every warning-letter-*.txt in the inbox."""
     root = inbox_dir or INBOX_DIR

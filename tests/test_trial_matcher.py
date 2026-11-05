@@ -13,8 +13,12 @@ from backend.agents.trial_matcher import (
     match_description,
     match_trials,
     parse_study,
+    referral_letter,
+    screening_questions,
     search_ctgov,
+    snapshot_lines,
     split_eligibility,
+    travel_check,
 )
 
 CRITERIA = """Inclusion Criteria:
@@ -402,6 +406,52 @@ class MatchTests(unittest.TestCase):
         res = match_trials(DESC, location="Boston", max_trials=1, http_get=http_get)
         self.assertTrue(res["widened"])
         self.assertEqual(res["trials"][0]["nct_id"], "NCT00000001")
+
+
+class ArtifactsTests(unittest.TestCase):
+    def test_travel_nearby(self):
+        study = {
+            "locations": [
+                "Boston, Massachusetts, United States",
+                "Austin, Texas, United States",
+            ]
+        }
+        out = travel_check(study, "Boston")
+        self.assertEqual(out["nearby"], ["Boston, Massachusetts, United States"])
+        self.assertIn("1 of 2", out["note"])
+
+    def test_travel_no_match(self):
+        study = {"locations": ["Austin, Texas, United States"]}
+        out = travel_check(study, "Boston")
+        self.assertEqual(out["nearby"], [])
+        self.assertIn("No listed site", out["note"])
+
+    def test_travel_no_location(self):
+        out = travel_check({"locations": ["Austin, Texas"]}, "")
+        self.assertIn("add your city", out["note"])
+
+    def test_snapshot_three_facts(self):
+        study = parse_study(_study())
+        snap = snapshot_lines(study)
+        self.assertEqual(len(snap), 3)
+        self.assertTrue(any("Boston" in s for s in snap))
+
+    def test_referral_letter_shape(self):
+        study = {
+            **parse_study(_study()),
+            "notes": [{"verdict": "likely met", "plain": "ok", "quote": "q"}],
+        }
+        out = referral_letter(study, DESC, "Jane")
+        self.assertIn("NCT00000001", out["letter"])
+        self.assertIn("Jane", out["letter"])
+        self.assertIn("matching aid", out["letter"])
+
+    def test_screening_questions_split(self):
+        out = screening_questions(parse_study(_study()))
+        kinds = [q["kind"] for q in out["questions"]]
+        self.assertIn("inclusion", kinds)
+        self.assertIn("exclusion", kinds)
+        self.assertTrue(all(q["question"] for q in out["questions"]))
 
 
 class TrialGptTests(unittest.TestCase):

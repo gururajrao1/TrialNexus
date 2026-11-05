@@ -82,6 +82,27 @@ class ParseLetterTests(unittest.TestCase):
         self.assertEqual(letter["violations"], [])
 
 
+class PromoCheckTests(unittest.TestCase):
+    def test_off_indication_flagged(self):
+        from backend.agents.warning_letters import check_promo_draft
+
+        out = check_promo_draft(
+            "Our drug cures diabetes and hypertension, ask your doctor",
+            "Non-small cell lung cancer",
+        )
+        self.assertEqual(out["verdict"], "needs review")
+        texts = [f["text"] for f in out["flags"]]
+        self.assertIn("diabetes", texts)
+
+    def test_clean_copy_passes(self):
+        from backend.agents.warning_letters import check_promo_draft
+
+        out = check_promo_draft(
+            "A treatment for non-small cell lung cancer", "Non-small cell lung cancer"
+        )
+        self.assertEqual(out["verdict"], "no lexical flags")
+
+
 class CrossCheckTests(unittest.TestCase):
     def setUp(self):
         self.letters = [

@@ -4,31 +4,51 @@ import { loadDemo, uploadedBundles } from "./data.js";
 import {
   runAgingUpload,
   runAudit,
+  runBudget,
   runCohort,
+  runContraScreen,
   runCrfTrace,
+  runDsur,
+  runEscalation,
+  runMilestones,
+  runNiMargin,
   runNpi,
   runOutcomes,
   runPdf,
+  runPower,
   runPrescreen,
   runPubmed,
   runRetention,
+  runRiskRegister,
+  runSaeNarrative,
   runSafety,
   runSignals,
   runSites,
+  runSiv,
   runSweep,
 } from "./panels-core.js";
 import {
   loadDiversityDefaults,
+  renderWatchlist,
+  runCodeWhys,
+  runCompetition,
   runDeviation,
   runDiversity,
+  runDsmb,
   runExternal,
   runFinder,
   runForensics,
   runHistory,
+  runInspection,
   runLetters,
   runLettersCheck,
   runMonitoring,
+  runMonitoringPlan,
+  runPortfolio,
+  runPromoCheck,
   runTrialMatch,
+  runVisitReport,
+  watchCurrentSearch,
   runStartup,
 } from "./panels-product.js";
 import { runMcode, runTwins, runValidity } from "./panels-tier.js";
@@ -179,6 +199,12 @@ $("mcodeForm").addEventListener("submit", (e) => { e.preventDefault(); runMcode(
 $("validityForm").addEventListener("submit", (e) => { e.preventDefault(); runValidity(); });
 $("lettersForm").addEventListener("submit", (e) => { e.preventDefault(); runLettersCheck(); });
 $("matcherForm").addEventListener("submit", (e) => { e.preventDefault(); runTrialMatch(); });
+$("watchBtn").addEventListener("click", () => { watchCurrentSearch(); });
+$("dsurBtn").addEventListener("click", () => { runDsur(); });
+$("riskBtn").addEventListener("click", () => { runRiskRegister(); });
+$("planBtn").addEventListener("click", () => { runMonitoringPlan(); });
+$("milesBtn").addEventListener("click", () => { runMilestones(); });
+$("sivBtn").addEventListener("click", () => { runSiv(); });
 $("sweepForm").addEventListener("submit", (e) => { e.preventDefault(); runSweep(); });
 $("retentionForm").addEventListener("submit", (e) => { e.preventDefault(); runRetention(); });
 $("outcomesForm").addEventListener("submit", (e) => { e.preventDefault(); runOutcomes(); });
@@ -186,6 +212,19 @@ $("pdfForm").addEventListener("submit", (e) => { e.preventDefault(); runPdf(); }
 $("pubmedForm").addEventListener("submit", (e) => { e.preventDefault(); runPubmed(); });
 $("signalForm").addEventListener("submit", (e) => { e.preventDefault(); runSignals(); });
 $("crfForm").addEventListener("submit", (e) => { e.preventDefault(); runCrfTrace(); });
+$("powerForm").addEventListener("submit", (e) => { e.preventDefault(); runPower(); });
+$("niForm").addEventListener("submit", (e) => { e.preventDefault(); runNiMargin(); });
+$("budgetForm").addEventListener("submit", (e) => { e.preventDefault(); runBudget(); });
+$("saeBtn").addEventListener("click", () => { runSaeNarrative(); });
+$("escalBtn").addEventListener("click", () => { runEscalation(); });
+$("contraForm").addEventListener("submit", (e) => { e.preventDefault(); runContraScreen(); });
+$("promoForm").addEventListener("submit", (e) => { e.preventDefault(); runPromoCheck(); });
+$("visitBtn").addEventListener("click", () => { runVisitReport(); });
+$("whyForm").addEventListener("submit", (e) => { e.preventDefault(); runCodeWhys(); });
+$("inspForm").addEventListener("submit", (e) => { e.preventDefault(); runInspection(); });
+$("portBtn").addEventListener("click", () => { runPortfolio(); });
+$("dsmbBtn").addEventListener("click", () => { runDsmb(); });
+$("compForm").addEventListener("submit", (e) => { e.preventDefault(); runCompetition(); });
 $("prescreenForm").addEventListener("submit", (e) => { e.preventDefault(); runPrescreen(); });
 $("prescreenFiles").addEventListener("change", async (e) => {
   const files = [...(e.target.files || [])];
@@ -296,7 +335,7 @@ if (g0) {
 }
 loadSnapshot().then(loadDemo).then(loadDiversityDefaults).then(() => {
   runAudit(); runSites(); runDiversity(); runStartup(); runMonitoring(); runFinder(); runExternal();
-  runTwins(); runMcode(); runValidity(); runLetters(); runTrialMatch(); runSweep(); runRetention(); runOutcomes();
+  runTwins(); runMcode(); runValidity(); runLetters(); runTrialMatch(); renderWatchlist(); runSweep(); runRetention(); runOutcomes();
   Promise.all([runCohort(), runSafety()]).then(() => { runHistory(); runForensics(); });
 }).catch(() => {
   for (const id of ["auditResult", "sitesResult", "cohortResult", "safetyResult", "diversityResult", "historyResult", "startupResult", "monitoringResult", "finderResult", "externalResult", "twinsResult", "mcodeResult", "validityResult", "lettersResult", "matcherResult", "sweepResult", "retentionResult", "forensicResult", "outcomesResult", "pubmedResult"]) {
